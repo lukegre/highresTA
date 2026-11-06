@@ -1,0 +1,24 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-
+outputs/
+data_source/
+trained_models/
+models/
+
+# Virtual environments
+.venv
+.env
+.DS_Store
+
+data/
+**/catboost_info/*
+*.nc
+*.db
+*pkl
+*.pdf
+.ipynb_checkpoints
