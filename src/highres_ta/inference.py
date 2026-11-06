@@ -1,6 +1,8 @@
+import os
 import string
 from functools import lru_cache
 
+import dotenv
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -10,9 +12,20 @@ from highres_ta.quantile_ensemble import QuantileRegressionEnsemble
 
 from .features import latlon_to_spherical_coords
 
-FNAME_PROCESSED = "/net/sea/work/gregorl/projects/oceansoda_v2/data/processed/OceanSODA_ETHZv2-gridded_data-8D_025deg.zarr"
-FNAME_BATHYMETRY = "/net/sea/work/datasets/grd/ocean/2d/obs/bathymetry/ETOPO1/ETOPO15_mean_bath.nc"
-FNAME_NUTRIENTS = "/net/sea/work/gregorl/projects/OceanSODA-ETHZv2/data-in/carbsys/nutrients_woa18_t46y720x1440.zarr"
+dotenv.load_dotenv()
+
+FNAME_PROCESSED = os.environ.get(
+    "HIGHRES_TA_FNAME_PROCESSED",
+    "/net/sea/work/gregorl/projects/oceansoda_v2/data/processed/OceanSODA_ETHZv2-gridded_data-8D_025deg.zarr",
+)
+FNAME_BATHYMETRY = os.environ.get(
+    "HIGHRES_TA_FNAME_BATHYMETRY",
+    "/net/sea/work/datasets/grd/ocean/2d/obs/bathymetry/ETOPO1/ETOPO15_mean_bath.nc",
+)
+FNAME_NUTRIENTS = os.environ.get(
+    "HIGHRES_TA_FNAME_NUTRIENTS",
+    "/net/sea/work/gregorl/projects/OceanSODA-ETHZv2/data-in/carbsys/nutrients_woa18_t46y720x1440.zarr",
+)
 
 
 @lru_cache(1)

@@ -1,9 +1,15 @@
+from collections.abc import Sequence
+from itertools import combinations
+from pathlib import Path
+from typing import Any
+
 import numpy as np
 import pandas as pd
 from loguru import logger
 from sklearn.model_selection import StratifiedGroupKFold
 
 FoldIndices = tuple[np.ndarray, np.ndarray]
+SPLIT_NAMES = ("train", "validation", "test")
 
 
 def make_salinity_bins(
@@ -176,3 +182,73 @@ def make_train_test_split(
 
     # Return only the first fold as train/test split
     return folds
+
+
+def outer_blocks(data: pd.DataFrame, config: dict[str, Any]) -> list[np.ndarray]:
+    """Return the shared partition. Block 0 always tests, so no member trains on it."""
+    cv_config = config["cross_validation"]
+    n_parts = int(cv_config["n_parts"])
+    if n_parts < 3:
+        raise ValueError("cross_validation.n_parts must be at least 3.")
+    return [
+        test_index
+        for _, test_index in make_train_test_folds(
+            data,
+            n_splits=n_parts,
+            shuffle=True,
+            random_state=int(cv_config["split_random_state"]),
+        )
+    ]
+
+
+def split_indices(blocks: Sequence[np.ndarray], split: int) -> dict[str, Any]:
+    """Return train/validation/test positional indices when block ``split`` validates."""
+    if not 1 <= split < len(blocks):
+        raise ValueError(f"Split {split} is outside 1..{len(blocks) - 1}.")
+    train_blocks = [np.sort(block) for index, block in enumerate(blocks) if index not in (0, split)]
+    return {
+        "train": np.sort(np.concatenate(train_blocks)),
+        "validation": np.sort(blocks[split]),
+        "test": np.sort(blocks[0]),
+        "train_blocks": train_blocks,
+    }
+
+
+def tuning_folds(split: dict[str, Any]) -> list[tuple[np.ndarray, np.ndarray]]:
+    """Leave-one-block-out folds as positions within ``split["train"]``."""
+    train = split["train"]
+    blocks = split["train_blocks"]
+    folds = []
+    for held_out, block in enumerate(blocks):
+        fit = np.concatenate([other for index, other in enumerate(blocks) if index != held_out])
+        folds.append((np.searchsorted(train, np.sort(fit)), np.searchsorted(train, block)))
+    return folds
+
+
+def validate_split(data: pd.DataFrame, split: dict[str, Any], index: int) -> None:
+    covered = np.concatenate([split[name] for name in SPLIT_NAMES])
+    if len(covered) != len(data) or len(np.unique(covered)) != len(data):
+        raise ValueError(f"Split {index} does not cover every row exactly once.")
+    groups = data.index.get_level_values("expocode").to_numpy()
+    for left, right in combinations(SPLIT_NAMES, 2):
+        overlap = set(groups[split[left]]).intersection(groups[split[right]])
+        if overlap:
+            raise ValueError(f"Split {index} leaks cruises between {left} and {right}: {overlap}")
+    logger.info(
+        "Split {}: {:,} train / {:,} validation / {:,} test observations",
+        index,
+        len(split["train"]),
+        len(split["validation"]),
+        len(split["test"]),
+    )
+
+
+def write_split(output_dir: Path, data: pd.DataFrame, split: dict[str, Any], index: int):
+    frame = pd.DataFrame({
+        "row_id": np.concatenate([split[name] for name in SPLIT_NAMES]),
+        "split": np.repeat(SPLIT_NAMES, [len(split[name]) for name in SPLIT_NAMES]),
+    }).sort_values("row_id", ignore_index=True)
+    frame["expocode"] = data.index.get_level_values("expocode").to_numpy()[frame["row_id"]]
+    path = output_dir / "splits" / f"split_{index}.parquet"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    frame.to_parquet(path, index=False)

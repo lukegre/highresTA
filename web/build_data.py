@@ -13,10 +13,8 @@ import pandas as pd
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "src"))
 import highres_ta as ta  # noqa: E402
-import train_quantile_ensemble as tq  # noqa: E402
 
 RUN = ROOT / "models" / "quantile_ensemble_split_hpo_1993-2022"
 QS = [0.1, 0.5, 0.9]

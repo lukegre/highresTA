@@ -1,24 +1,19 @@
-import importlib.util
 import unittest
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from highres_ta import QuantileRegressionEnsemble, decompose_variance
+from highres_ta.train_test_split import (
+    SPLIT_NAMES,
+    outer_blocks,
+    split_indices,
+    tuning_folds,
+    validate_split,
+)
+from highres_ta.training import Member, members
 
-SCRIPT = Path(__file__).resolve().parents[1] / "scripts" / "train_quantile_ensemble.py"
 QUANTILES = [0.1, 0.5, 0.9]
-
-
-def load_script():
-    spec = importlib.util.spec_from_file_location("train_quantile_ensemble", SCRIPT)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module
-
-
-script = load_script()
 
 
 def make_config(n_parts=7, n_hpo_replicates=7):
@@ -52,7 +47,7 @@ class FixedQuantileEstimator:
 
 class MemberTests(unittest.TestCase):
     def test_full_design_is_six_splits_by_seven_replicates(self):
-        selected = script.members(make_config())
+        selected = members(make_config())
 
         self.assertEqual(len(selected), 42)
         self.assertEqual(
@@ -63,7 +58,7 @@ class MemberTests(unittest.TestCase):
         self.assertEqual(len({m.name for m in selected}), 42)
 
     def test_member_seed_and_name(self):
-        member = script.Member(split=3, replicate=5)
+        member = Member(split=3, replicate=5)
 
         self.assertEqual(member.seed, 305)
         self.assertEqual(member.name, "split_3_hpo_5")
@@ -71,20 +66,20 @@ class MemberTests(unittest.TestCase):
     def test_filters(self):
         config = make_config()
 
-        by_split = script.members(config, split=2)
-        by_replicate = script.members(config, replicate=4)
-        single = script.members(config, split=6, replicate=0)
+        by_split = members(config, split=2)
+        by_replicate = members(config, replicate=4)
+        single = members(config, split=6, replicate=0)
 
         self.assertEqual([m.replicate for m in by_split], list(range(7)))
         self.assertTrue(all(m.split == 2 for m in by_split))
         self.assertEqual([m.split for m in by_replicate], list(range(1, 7)))
-        self.assertEqual(single, [script.Member(split=6, replicate=0)])
+        self.assertEqual(single, [Member(split=6, replicate=0)])
 
     def test_out_of_range_filters_raise(self):
         config = make_config()
         for kwargs in ({"split": 0}, {"split": 7}, {"replicate": -1}, {"replicate": 7}):
             with self.subTest(**kwargs), self.assertRaises(ValueError):
-                script.members(config, **kwargs)
+                members(config, **kwargs)
 
 
 class PartitionTests(unittest.TestCase):
@@ -92,7 +87,7 @@ class PartitionTests(unittest.TestCase):
     def setUpClass(cls):
         cls.config = make_config()
         cls.data = make_data()
-        cls.blocks = script.outer_blocks(cls.data, cls.config)
+        cls.blocks = outer_blocks(cls.data, cls.config)
         cls.groups = cls.data.index.get_level_values("expocode").to_numpy()
 
     def test_outer_blocks_partition_rows_by_cruise(self):
@@ -106,18 +101,18 @@ class PartitionTests(unittest.TestCase):
                 self.assertFalse(cruise_sets[i] & cruise_sets[j])
 
     def test_outer_blocks_are_deterministic(self):
-        again = script.outer_blocks(self.data, self.config)
+        again = outer_blocks(self.data, self.config)
         for left, right in zip(self.blocks, again):
             np.testing.assert_array_equal(np.sort(left), np.sort(right))
 
     def test_outer_blocks_require_three_parts(self):
         with self.assertRaises(ValueError):
-            script.outer_blocks(self.data, make_config(n_parts=2))
+            outer_blocks(self.data, make_config(n_parts=2))
 
     def test_test_block_is_shared_and_validation_rotates(self):
         for k in range(1, 7):
             with self.subTest(split=k):
-                split = script.split_indices(self.blocks, k)
+                split = split_indices(self.blocks, k)
                 np.testing.assert_array_equal(split["test"], np.sort(self.blocks[0]))
                 np.testing.assert_array_equal(split["validation"], np.sort(self.blocks[k]))
                 self.assertEqual(len(split["train_blocks"]), 5)
@@ -128,25 +123,25 @@ class PartitionTests(unittest.TestCase):
     def test_split_is_disjoint_complete_and_leak_free(self):
         for k in range(1, 7):
             with self.subTest(split=k):
-                split = script.split_indices(self.blocks, k)
-                covered = np.concatenate([split[name] for name in script.SPLIT_NAMES])
+                split = split_indices(self.blocks, k)
+                covered = np.concatenate([split[name] for name in SPLIT_NAMES])
                 self.assertEqual(len(covered), len(self.data))
                 self.assertEqual(len(np.unique(covered)), len(self.data))
-                for name in script.SPLIT_NAMES:
+                for name in SPLIT_NAMES:
                     self.assertTrue(np.all(np.diff(split[name]) > 0))
-                script.validate_split(self.data, split, k)
+                validate_split(self.data, split, k)
 
     def test_invalid_split_raises(self):
         for k in (0, 7):
             with self.subTest(split=k), self.assertRaises(ValueError):
-                script.split_indices(self.blocks, k)
+                split_indices(self.blocks, k)
 
     def test_tuning_folds_are_leave_one_block_out_within_train(self):
         for k in range(1, 7):
             with self.subTest(split=k):
-                split = script.split_indices(self.blocks, k)
+                split = split_indices(self.blocks, k)
                 train_rows = split["train"]
-                folds = script.tuning_folds(split)
+                folds = tuning_folds(split)
 
                 self.assertEqual(len(folds), 5)
                 for (fit, holdout), block in zip(folds, split["train_blocks"]):
@@ -160,9 +155,9 @@ class PartitionTests(unittest.TestCase):
                 np.testing.assert_array_equal(np.sort(holdouts), np.arange(len(train_rows)))
 
     def test_tuning_folds_do_not_depend_on_replicate(self):
-        split = script.split_indices(self.blocks, 3)
-        first = script.tuning_folds(split)
-        second = script.tuning_folds(script.split_indices(self.blocks, 3))
+        split = split_indices(self.blocks, 3)
+        first = tuning_folds(split)
+        second = tuning_folds(split_indices(self.blocks, 3))
         for (fit_a, holdout_a), (fit_b, holdout_b) in zip(first, second):
             np.testing.assert_array_equal(fit_a, fit_b)
             np.testing.assert_array_equal(holdout_a, holdout_b)

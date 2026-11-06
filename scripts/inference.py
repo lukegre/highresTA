@@ -24,9 +24,11 @@ def main(
     n_workers: int = N_CONCURRENT_MODELS,
     start_date: str = START_DATE,
     end_date: str = END_DATE,
+    max_cpus: int = MAX_CPUS_PER_MODEL,
+    aggregation: str | None = None,
 ) -> None:
 
-    model = load_model(model_path)
+    model = load_model(model_path, max_cpus=max_cpus, aggregation=aggregation)
     ds = get_inference_data(model)
     dates = ds.time.sel(time=slice(start_date, end_date)).values
 
@@ -34,11 +36,12 @@ def main(
 
 
 def load_model(
-    model_path: str, max_cpus: int = 42, aggregation: str = "median"
+    model_path: str, max_cpus: int = MAX_CPUS_PER_MODEL, aggregation: str | None = None
 ) -> ta.QuantileRegressionEnsemble:
     model = ta.QuantileRegressionEnsemble.load(model_path)
     model.optimise_cpus(max_cpus=max_cpus)
-    model.aggregation = aggregation
+    if aggregation is not None:
+        model.aggregation = aggregation
     return model
 
 
