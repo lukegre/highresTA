@@ -3,6 +3,7 @@
 import hashlib
 import itertools
 import json
+import tempfile
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -490,11 +491,20 @@ def json_default(value):
 
 def write_json(path: Path, payload: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temporary_path = path.with_suffix(path.suffix + ".tmp")
-    with temporary_path.open("w") as handle:
-        json.dump(payload, handle, indent=2, sort_keys=True, default=json_default)
-        handle.write("\n")
-    temporary_path.replace(path)
+    with tempfile.NamedTemporaryFile(
+        mode="w", dir=path.parent, prefix=path.name + ".", suffix=".tmp", delete=False
+    ) as handle:
+        temporary_path = Path(handle.name)
+        try:
+            json.dump(payload, handle, indent=2, sort_keys=True, default=json_default)
+            handle.write("\n")
+        except BaseException:
+            temporary_path.unlink(missing_ok=True)
+            raise
+    try:
+        temporary_path.replace(path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
 
 
 def members(config: dict[str, Any], split: int | None = None) -> list[Member]:

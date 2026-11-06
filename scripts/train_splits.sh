@@ -7,44 +7,76 @@
 #   uv run python scripts/train_quantile_ensemble.py --stage assemble
 # once every split has been trained.
 set -euo pipefail
+
+# Resolve all paths relative to the repository root.
 cd "$(dirname "$0")/.."
 
+# This wrapper controls the training stages and reads the default configuration.
 for arg in "$@"; do
     case "$arg" in
         --split|--split=*|--stage|--stage=*|--config|--config=*)
             echo "train_splits.sh does not accept $arg; use SPLITS=\"...\" to choose splits" >&2
-            exit 2 ;;
+            exit 2
+            ;;
     esac
 done
 
-uv sync  # once, so the concurrent `uv run`s below do not race on the environment
-assemble=1
+# Sync once so concurrent training processes do not race on the environment.
+uv sync
+
+uv run python - <<'PY'
+from loguru import logger
+
+logger.info("Starting parallel split training; per-split logs are written to logs/train_split_<split>.log")
+PY
+
+assemble_after_training=true
 if [ -n "${SPLITS:-}" ]; then
-    assemble=0
+    assemble_after_training=false
 else
-    SPLITS=$(uv run python -c "
+    SPLITS=$(uv run python - <<'PY'
 from highres_ta.training import load_config
-print(*range(1, load_config()['cross_validation']['n_parts']))")
+
+n_parts = load_config()["cross_validation"]["n_parts"]
+print(*range(1, n_parts))
+PY
+    )
 fi
 
 mkdir -p logs
 pids=()
-trap 'kill ${pids[@]+"${pids[@]}"} 2>/dev/null || true; exit 130' INT TERM
-for k in $SPLITS; do
-    uv run python scripts/train_quantile_ensemble.py --stage train --split "$k" "$@" \
-        > "logs/train_split_$k.log" 2>&1 &
-    pids+=($!)
+
+stop_training() {
+    if [ "${#pids[@]}" -gt 0 ]; then
+        kill "${pids[@]}" 2>/dev/null || true
+    fi
+    exit 130
+}
+trap stop_training INT TERM
+
+# Start every requested split, keeping its output in a separate log file.
+for split in $SPLITS; do
+    uv run python scripts/train_quantile_ensemble.py --stage train --split "$split" "$@" \
+        > "logs/train_split_$split.log" 2>&1 &
+    pids+=("$!")
 done
 
-failed=0
-i=0
-for k in $SPLITS; do
-    wait "${pids[$i]}" || { echo "split $k failed, see logs/train_split_$k.log" >&2; failed=1; }
-    i=$((i + 1))
+# Wait for all splits, even if one fails, before deciding whether to assemble.
+training_failed=false
+pid_index=0
+for split in $SPLITS; do
+    if ! wait "${pids[$pid_index]}"; then
+        echo "split $split failed, see logs/train_split_$split.log" >&2
+        training_failed=true
+    fi
+    pid_index=$((pid_index + 1))
 done
-[ "$failed" -eq 0 ] || exit 1
 
-if [ "$assemble" -eq 0 ]; then
+if [ "$training_failed" = true ]; then
+    exit 1
+fi
+
+if [ "$assemble_after_training" = false ]; then
     echo "SPLITS was set: skipping assembly. Run --stage assemble once all splits exist."
     exit 0
 fi

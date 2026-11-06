@@ -3,7 +3,7 @@
     "title": "High-resolution Total Alkalinity",
     "short_title": "highres-TA",
     "description": "How a quantile-regression ensemble estimates ocean total alkalinity and its uncertainty.",
-    "footer": "Swiss Data Science Center · Numbers are generated from the 1993–2021 run by web/build_data.py · Edit the text in web/content.json",
+    "footer": "Swiss Data Science Center · Current methods: split-wise Rashomon ensemble · Interactive results identify their source run above.",
     "nav": [
       {
         "id": "data",
@@ -38,27 +38,27 @@
   "hero": {
     "eyebrow": "Ocean carbon · machine learning",
     "headline": "Estimating total alkalinity, and how sure we are about it",
-    "lead": "A gradient-boosted quantile model learns total alkalinity (TA) from bottle samples. We train **{{run.n_members}} models** that differ in the data they saw and in how they were tuned, then use their disagreement as an uncertainty signal.",
+    "lead": "A gradient-boosted quantile model learns total alkalinity (TA) from bottle samples. The current design trains **42 models: 6 data splits × 7 diverse near-optimal trials**, selected from one hyperparameter study per split. Their disagreement measures sensitivity to training data, feature choices and model parameters.",
     "stats": [
       {
         "label": "Bottle samples",
         "value": "{{run.n_total|int}}",
-        "note": "after quality control"
+        "note": "displayed results, after quality control"
       },
       {
         "label": "Cruises",
         "value": "{{run.n_cruises|int}}",
-        "note": "GLODAPv2.2023"
+        "note": "displayed results, GLODAPv2.2023"
       },
       {
         "label": "Ensemble members",
         "value": "{{run.n_members|int}}",
-        "note": "6 splits × 7 HPO replicates"
+        "note": "members in the displayed results"
       },
       {
         "label": "Held-out RMSE",
         "value": "{{ensemble_scores.all.median_rmse|1}} µmol/kg",
-        "note": "R² = {{ensemble_scores.all.median_r2|3}}"
+        "note": "displayed results · R² = {{ensemble_scores.all.median_r2|3}}"
       }
     ]
   },
@@ -76,17 +76,17 @@
             {
               "tag": "Target",
               "title": "Total alkalinity (TA)",
-              "body": "In µmol/kg, from the **GLODAPv2.2023** bottle compilation. Seawater TA spans roughly 2000–2500 µmol/kg, so errors of ~19 µmol/kg are under 1 %."
+              "body": "In µmol/kg, from the **GLODAPv2.2023** bottle compilation. The linear salinity baseline and boosted residual are fitted to the quality-controlled bottle target."
             },
             {
               "tag": "Predictors",
-              "title": "10 features",
-              "body": "Salinity, temperature, nitrate, phosphate, silicate, bottom depth, satellite sea-surface height (ADT) and the 3 coordinates of the sample on a unit sphere."
+              "title": "11 candidate features",
+              "body": "Salinity, temperature, nitrate, phosphate, silicate, bottom depth, satellite sea-surface height (ADT), chlorophyll and three unit-sphere coordinates. Each trial may ignore up to two features; salinity and temperature are always retained."
             },
             {
               "tag": "Period",
-              "title": "1993 – 2021",
-              "body": "One parquet file per year is collocated with gridded products. The run starts in 1993 because satellite altimetry (DUACS) begins then; data back to 1982 exist and are not yet used."
+              "title": "Use all eligible dates",
+              "body": "The current preprocessing has no fixed 1993 start date. It requires TA, salinity, temperature and nitrate; missing satellite predictors can remain for CatBoost to handle. The earlier run required SSH and covered 1993–2021."
             }
           ]
         },
@@ -120,6 +120,11 @@
               "Dynamic topography: a proxy for ocean circulation and water-mass structure."
             ],
             [
+              "`chl_globcolour`",
+              "Gridded chlorophyll",
+              "Adds biological context; may be omitted by a trial."
+            ],
+            [
               "`bottomdepth`",
               "Bathymetry",
               "Separates open ocean from shelf and coastal regimes."
@@ -135,7 +140,7 @@
           "type": "callout",
           "tone": "info",
           "title": "Collocation",
-          "body": "Each bottle's time and position are matched to the nearest cell of each gridded product (nearest day, nearest grid point). Day-of-year (sine/cosine) is computed by the pipeline but **not** among the 10 features in this run."
+          "body": "Bottle time and position are matched to gridded predictors in the collocation pipeline. Day-of-year sine/cosine is computed during preprocessing but is not selected among the current 11 candidate features. Missing optional predictors are retained; CatBoost handles numeric missing values."
         }
       ]
     },
@@ -143,7 +148,7 @@
       "id": "preprocessing",
       "kicker": "02 · Preprocessing",
       "title": "From raw bottles to a clean training table",
-      "lead": "Four filters remove unreliable or incomplete samples. The bars below show how many rows survive each step, computed from the actual data.",
+      "lead": "Salinity, quality flags, required values and duplicate records determine which samples enter training. The funnel below belongs to the displayed results run; the earlier run also required SSH.",
       "blocks": [
         {
           "type": "funnel",
@@ -162,7 +167,7 @@
             },
             {
               "title": "Complete cases",
-              "body": "Require TA, salinity, temperature, nitrate and altimetry (SSH) to be present."
+              "body": "Require **TA, salinity, temperature and nitrate**. SSH, chlorophyll, phosphate, silicate and bottom depth are optional at this filtering step."
             },
             {
               "title": "De-duplicate",
@@ -195,17 +200,17 @@
           "items": [
             {
               "tag": "Train",
-              "title": "5 blocks (~19 400 rows)",
+              "title": "5 training blocks",
               "body": "Used to fit the model. Hyperparameters are tuned by **leave-one-block-out** cross-validation inside these 5 blocks."
             },
             {
               "tag": "Validation",
-              "title": "1 block (~3 900 rows)",
-              "body": "Different for each of the 6 splits. Not used for fitting or tuning: kept aside to calibrate the uncertainty estimate."
+              "title": "1 validation block",
+              "body": "Different for each of the 6 splits. Excluded from tuning, member selection and refitting. Available for uncertainty calibration; no calibration is currently applied."
             },
             {
               "tag": "Test",
-              "title": "Block 0 (3 891 rows)",
+              "title": "Block 0 · shared test set",
               "body": "Identical for every member. Gives an honest score for each model and for the ensemble."
             }
           ]
@@ -227,7 +232,7 @@
             },
             {
               "title": "2 · Boosted residual",
-              "body": "CatBoost learns the residual `TA − TA₀` from all 10 features using a **multi-quantile loss**, predicting the 10th, 50th and 90th percentiles together."
+              "body": "CatBoost learns the residual `TA − TA₀` using **MultiQuantile loss**, predicting the 10th, 50th and 90th percentiles together. Trials use the candidate features except for their selected omissions."
             },
             {
               "title": "3 · Prediction",
@@ -244,7 +249,7 @@
         },
         {
           "type": "table",
-          "title": "Hyperparameters searched by Optuna (TPE, 100 trials per member, 20 random start-up trials)",
+          "title": "One Optuna TPE study per split: target 300 completed trials, 50 random start-up trials",
           "columns": [
             "Parameter",
             "Search range",
@@ -253,18 +258,13 @@
           "rows": [
             [
               "`learning_rate`",
-              "0.01 – 1.0",
+              "0.03 – 0.3",
               "log"
             ],
             [
               "`l2_leaf_reg`",
               "1 – 100",
               "log"
-            ],
-            [
-              "`min_data_in_leaf`",
-              "1 – 100",
-              "integer"
             ],
             [
               "`depth`",
@@ -275,22 +275,33 @@
               "`random_strength`",
               "1 – 10",
               "linear"
+            ],
+            [
+              "`dropped_features`",
+              "None, one or two non-protected features",
+              "categorical; salinity and temperature protected"
             ]
           ]
         },
         {
           "type": "callout",
           "tone": "info",
+          "title": "Inner-CV objective and pruning",
+          "body": "A trial is scored by the **median MultiQuantile validation loss over five inner folds**. After each fold, the running median is reported to a 75th-percentile pruner, with 50 start-up trials before pruning. The default is eight concurrent trials per split and two CatBoost threads per trial. SQLite studies resume until the completed-trial target is reached."
+        },
+        {
+          "type": "callout",
+          "tone": "info",
           "title": "How the number of trees is set",
-          "body": "Each trial trains up to 1000 trees with early stopping (50 rounds) on the held-out inner fold. The final model is refit on all 5 training blocks with the **median** best iteration across folds."
+          "body": "Each inner fit trains up to **1000 trees**, with early stopping after 50 rounds. A selected member is refitted on all five training blocks using the **median best iteration count** from its trial’s inner folds, with early stopping disabled."
         }
       ]
     },
     {
       "id": "ensemble",
       "kicker": "05 · Ensemble members",
-      "title": "42 models from two sources of variation",
-      "lead": "Every member is a complete, independently tuned model. They differ in only two ways, which lets us separate two kinds of uncertainty.",
+      "title": "42 models from data splits and near-optimal alternatives",
+      "lead": "Each split runs one study. Seven members are selected from its completed trials, then refitted with distinct seeds. This replaces the earlier seven independent searches per split.",
       "blocks": [
         {
           "type": "cards",
@@ -302,20 +313,32 @@
               "body": "Split k holds block k out for validation and trains on the other five. Members from different splits learn from different subsets of cruises."
             },
             {
-              "tag": "Axis 2 · 7 replicates",
-              "title": "How the model was tuned",
-              "body": "Within a split, seven independent Optuna searches (different seeds) pick hyperparameters from the same data. They differ only through the search path and training randomness."
+              "tag": "Axis 2 · 7 selected members",
+              "title": "Diverse models with similar loss",
+              "body": "The Rashomon set contains completed trials with loss at most **1.02 × the best loss**. Starting with the best trial, greedily select the candidate furthest from its nearest selected member. Distance equally weights dropped-feature Jaccard distance and mean normalised hyperparameter distance (log-scaled where searched on a log scale)."
             }
           ]
         },
         {
+          "type": "callout",
+          "tone": "info",
+          "title": "Selection, fallback and refitting",
+          "body": "If fewer than seven trials fall within the 2% tolerance, include them all and fill the remaining places with the next-best completed trials outside it. These fill-ins are explicitly marked in metadata. Trial selection uses inner CV only. Study seed is `100 × split`; refit seed is `100 × split + member index`. Parallel TPE searches are not exactly reproducible from the seed alone."
+        },
+        {
           "type": "member-grid",
-          "title": "All members",
-          "hint": "Each cell is one model: rows are splits, columns are HPO replicates. Click a cell for its tuned hyperparameters and test scores."
+          "title": "Members in the displayed results run",
+          "hint": "Rows are splits; columns are member indices within a split. Click a cell for its parameters and test scores. Equal column indices across splits do not imply matched trials or features."
         },
         {
           "type": "text",
           "body": "The ensemble prediction is the **mean** of the members' quantiles. Because all members share the same test block, every difference between them on that block comes from the two axes above."
+        },
+        {
+          "type": "callout",
+          "tone": "info",
+          "title": "Saved run provenance",
+          "body": "Training saves the merged configuration, including command-line overrides, as `configs.json` in the run folder. Each split retains its SQLite study and a Rashomon CSV with trial loss, rank and selection flags. Each member records its trial number, dropped features, refit iterations, data fingerprint and validation/test scores."
         }
       ]
     },
@@ -323,7 +346,7 @@
       "id": "uncertainty",
       "kicker": "06 · Uncertainty",
       "title": "Disagreement between members is a measure of doubt",
-      "lead": "Two signals are available for every prediction: the spread of the member medians, and the width of the predicted quantile band. Explore how they behave on real held-out samples.",
+      "lead": "Member spread and the predicted quantile band provide two uncertainty signals. The current within-split spread reflects selected hyperparameters, feature omissions and refit randomness. The interactive examples below use the displayed results run.",
       "blocks": [
         {
           "type": "cards",
@@ -332,17 +355,17 @@
             {
               "tag": "Epistemic",
               "title": "Member spread",
-              "body": "Standard deviation of the 42 member medians. It grows where models disagree, typically in sparsely sampled regions."
+              "body": "Standard deviation of the member medians. It measures model disagreement, not a calibrated prediction error."
             },
             {
               "tag": "Aleatoric",
               "title": "Quantile width",
-              "body": "Predicted Q90 − Q10 divided by 2.563, which equals one standard deviation for a normal distribution."
+              "body": "Predicted Q90 − Q10 divided by 2.563. This is a normal-equivalent standard deviation, not an assumption that the predictive distribution is normal."
             },
             {
               "tag": "Decomposed",
-              "title": "Split vs. HPO",
-              "body": "By the law of total variance, member variance = variance between splits + average variance within a split (between HPO replicates)."
+              "title": "Between vs. within splits",
+              "body": "Population member variance = variance of the split means + mean within-split variance. For the current design, the within-split term includes Rashomon model choices and refit randomness. The legacy `hpo_var` field stores this term."
             }
           ]
         },
@@ -365,7 +388,7 @@
           "type": "callout",
           "tone": "key",
           "title": "Read this as a ranking, not an error bar",
-          "body": "Higher member spread goes with larger errors (the curves rise), but the raw spread is several times smaller than the actual RMSE in every bin. It tells you **which predictions to trust less**, not yet **by how many µmol/kg**. Rescaling on the validation blocks is the planned next step."
+          "body": "Assess both the magnitude and ranking of uncertainty on held-out data. Member spread is not calibrated to prediction error. The displayed historical diagnostics must be re-evaluated after the Rashomon run completes."
         },
         {
           "type": "ensemble-growth",
@@ -377,13 +400,13 @@
       "id": "limitations",
       "kicker": "07 · Caveats",
       "title": "What is still open",
-      "lead": "This page describes the current state of the work, not a finished product.",
+      "lead": "Check the source-run notice above when interpreting the diagnostics. Export the completed Rashomon run to evaluate the new selection method.",
       "blocks": [
         {
           "type": "callout",
           "tone": "warn",
-          "title": "Intervals are too narrow",
-          "body": "The nominal 80 % interval (Q10–Q90) covers **{{ensemble_scores.all.interval_80pct_coverage|pct}}** of held-out test samples. Averaging members does not fix this, so the bands should be widened or rescaled."
+          "title": "Coverage in the displayed results",
+          "body": "The displayed run’s nominal 80% interval covers **{{ensemble_scores.all.interval_80pct_coverage|pct}}** of its held-out test samples. Use the source-run notice to identify which method this score evaluates. Quantile averaging alone provides no coverage guarantee."
         },
         {
           "type": "cards",
@@ -395,14 +418,14 @@
               "body": "Use validation RMSE to choose between the member std and the scaled Q90 − Q10 as the uncertainty estimate, then rescale it. Compare against the untouched test block."
             },
             {
-              "tag": "Next",
-              "title": "Extend the record",
-              "body": "Data from 1982–1992 exist but are excluded because altimetry is missing. Dropping SSH or filling it would extend the training period."
+              "tag": "Check",
+              "title": "Earlier years and missing predictors",
+              "body": "SSH is no longer required for complete-case filtering. Check how much earlier data now enter training and whether missing satellite predictors affect regional accuracy and interval coverage."
             },
             {
               "tag": "Next",
               "title": "Independent check",
-              "body": "Compare predictions with the BATS and HOT time series, which were not used for tuning."
+              "body": "Evaluate on BATS and HOT time series after explicitly checking overlap with training cruises and dates."
             },
             {
               "tag": "Next",
@@ -410,6 +433,10 @@
               "body": "Apply the ensemble to the gridded 8-day, 0.25° fields, where the inputs are gridded products rather than bottle measurements."
             }
           ]
+        },
+        {
+          "type": "text",
+          "body": "Evaluation reports all samples and, when bottom depth is available, a subset deeper than 300 m. The depth threshold affects reporting rather than training selection. Rashomon loss tolerance is an empirical model-selection rule, not a confidence level or posterior probability."
         }
       ]
     }
@@ -420,15 +447,15 @@
     "presets": [
       {
         "id": "all",
-        "label": "All 42"
+        "label": "All members"
       },
       {
         "id": "one-split",
-        "label": "One split (7 replicates)"
+        "label": "One split"
       },
       {
         "id": "one-replicate",
-        "label": "One replicate (6 splits)"
+        "label": "Same member index across splits"
       },
       {
         "id": "random",

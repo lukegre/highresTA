@@ -40,6 +40,7 @@ from typing import Annotated
 import typer
 from loguru import logger
 
+from highres_ta.train_test_split import outer_blocks, split_indices, validate_split, write_split
 from highres_ta.training import (
     CONFIG_DIR,
     assemble_ensemble,
@@ -50,8 +51,8 @@ from highres_ta.training import (
     resolve_path,
     summarize_ensemble_test,
     train_split,
+    write_json,
 )
-from highres_ta.train_test_split import outer_blocks, split_indices, validate_split, write_split
 
 app = typer.Typer()
 
@@ -150,6 +151,7 @@ def main(
 
     if stage in (Stage.TRAIN, Stage.ALL):
         output_dir = resolve_path(config["paths"]["output_dir"])
+        write_json(output_dir / "configs.json", config)
         for index in selected_splits:
             split_dict = split_indices(blocks, index)
             validate_split(data, split_dict, index)
@@ -165,4 +167,3 @@ def main(
 
 if __name__ == "__main__":
     app()
-

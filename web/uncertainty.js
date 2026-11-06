@@ -262,9 +262,11 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   const { data, content, tpl, md, rdylbu } = ctx;
   const { explorer } = content;
   const { members, test_sample, variance_means } = data;
+  const nSplits = data.run.n_splits;
+  const nPerSplit = data.run.n_replicates;
 
   // === State ===
-  let selectedMembers = new Set(Array.from({ length: 42 }, (_, i) => i)); // All selected
+  let selectedMembers = new Set(Array.from({ length: members.length }, (_, i) => i)); // All selected
   let selectedSampleIdx = 0; // Start with first sample
   let randomN = 10; // For random preset
   let currentPreset = 'all';
@@ -289,24 +291,24 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     // Clear and rebuild
     gridContainer.innerHTML = '';
 
-    // Column headers (HPO replicates 0-6)
+    // Column headers: member index within a split
     const colHeaders = document.createElement('div');
-    colHeaders.style.gridColumn = '2 / span 7';
+    colHeaders.style.gridColumn = `2 / span ${nPerSplit}`;
     colHeaders.style.gridRow = '1';
     colHeaders.style.display = 'contents';
-    for (let col = 0; col < 7; col++) {
+    for (let col = 0; col < nPerSplit; col++) {
       const h = document.createElement('div');
       h.className = 'ux-member-header';
       h.textContent = col.toString();
       h.style.gridColumn = 2 + col;
       h.style.gridRow = 1;
-      h.setAttribute('aria-label', `HPO replicate ${col}`);
+      h.setAttribute('aria-label', `Member index ${col}`);
       h.addEventListener('click', () => toggleReplicate(col));
       gridContainer.appendChild(h);
     }
 
-    // Row headers (Splits 1-6)
-    for (let row = 0; row < 6; row++) {
+    // Row headers: splits
+    for (let row = 0; row < nSplits; row++) {
       const h = document.createElement('div');
       h.className = 'ux-member-header';
       h.textContent = (row + 1).toString();
@@ -318,14 +320,15 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     }
 
     // Member cells
-    for (let split = 1; split <= 6; split++) {
-      for (let rep = 0; rep < 7; rep++) {
-        const memberIdx = (split - 1) * 7 + rep;
+    for (let split = 1; split <= nSplits; split++) {
+      for (let rep = 0; rep < nPerSplit; rep++) {
+        const memberIdx = members.findIndex(m => m.split === split && m.replicate === rep);
+        if (memberIdx < 0) continue;
         const cell = document.createElement('button');
         cell.className = 'ux-member-cell';
         cell.textContent = memberIdx.toString();
         cell.setAttribute('aria-pressed', selectedMembers.has(memberIdx) ? 'true' : 'false');
-        cell.setAttribute('aria-label', `Member split ${split} replicate ${rep}`);
+        cell.setAttribute('aria-label', `Split ${split}, member index ${rep}`);
         cell.style.gridColumn = rep + 2;
         cell.style.gridRow = split + 1;
 
@@ -345,10 +348,10 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   }
 
   function toggleSplit(split) {
-    const indices = Array.from({ length: 7 }, (_, i) => (split - 1) * 7 + i);
+    const indices = members.flatMap((m, i) => m.split === split ? [i] : []);
     const allSelected = indices.every(i => selectedMembers.has(i));
 
-    if (allSelected && selectedMembers.size > 7) {
+    if (allSelected && selectedMembers.size > indices.length) {
       indices.forEach(i => selectedMembers.delete(i));
     } else {
       indices.forEach(i => selectedMembers.add(i));
@@ -357,10 +360,10 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   }
 
   function toggleReplicate(rep) {
-    const indices = Array.from({ length: 6 }, (_, i) => i * 7 + rep);
+    const indices = members.flatMap((m, i) => m.replicate === rep ? [i] : []);
     const allSelected = indices.every(i => selectedMembers.has(i));
 
-    if (allSelected && selectedMembers.size > 6) {
+    if (allSelected && selectedMembers.size > indices.length) {
       indices.forEach(i => selectedMembers.delete(i));
     } else {
       indices.forEach(i => selectedMembers.add(i));
@@ -383,17 +386,17 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     selectedMembers.clear();
 
     if (presetId === 'all') {
-      for (let i = 0; i < 42; i++) selectedMembers.add(i);
+      for (let i = 0; i < members.length; i++) selectedMembers.add(i);
     } else if (presetId === 'one-split') {
       const split = (parseInt(currentPreset.split) || 1);
-      for (let i = 0; i < 7; i++) selectedMembers.add((split - 1) * 7 + i);
+      members.forEach((member, i) => { if (member.split === split) selectedMembers.add(i); });
       // Next call: cycle to next split
     } else if (presetId === 'one-replicate') {
       const rep = (parseInt(currentPreset.replicate) || 0);
-      for (let i = 0; i < 6; i++) selectedMembers.add(i * 7 + rep);
+      members.forEach((member, i) => { if (member.replicate === rep) selectedMembers.add(i); });
     } else if (presetId === 'random') {
       const rng = new SeededRandom(42);
-      const indices = Array.from({ length: 42 }, (_, i) => i)
+      const indices = Array.from({ length: members.length }, (_, i) => i)
         .sort(() => rng.next() - 0.5)
         .slice(0, randomN);
       indices.forEach(i => selectedMembers.add(i));
@@ -784,7 +787,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       const members = Array.from(selectedMembers).sort((x, y) => x - y);
       const groups = new Map();
       members.forEach((m) => {
-        const split = Math.floor(m / 7) + 1;
+        const split = members[m].split;
         if (!groups.has(split)) groups.set(split, []);
         groups.get(split).push(m);
       });
@@ -846,9 +849,9 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       groups.forEach((ids, split) => {
         const y0 = y;
         ids.forEach((m) => {
-          const rep = m % 7;
+          const rep = members[m].replicate;
           const row = el('g', { class: 'ux-whisker-row' });
-          row.appendChild(el('title', {}, `Split ${split}, HPO ${rep}: median ${fmt(s.q2[m], 1)} (Q10 ${fmt(s.q1[m], 1)} to Q90 ${fmt(s.q3[m], 1)})`));
+          row.appendChild(el('title', {}, `Split ${split}, member ${rep}: median ${fmt(s.q2[m], 1)} (Q10 ${fmt(s.q1[m], 1)} to Q90 ${fmt(s.q3[m], 1)})`));
           row.appendChild(el('rect', {
             x: xScale(s.q1[m]), y: y - 2, width: Math.max(1, xScale(s.q3[m]) - xScale(s.q1[m])), height: 4, class: 'ux-whisker-band',
           }));
@@ -882,12 +885,12 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   }
 
   function renderVarianceSummary(stats) {
-    // Compute split vs HPO variance
+    // Compute between-split and within-split variance
     const memberList = Array.from(selectedMembers);
     const splitGroups = new Map();
 
     memberList.forEach((idx) => {
-      const split = Math.floor(idx / 7) + 1;
+      const split = members[idx].split;
       if (!splitGroups.has(split)) {
         splitGroups.set(split, []);
       }
@@ -911,7 +914,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
         .reduce((a, b) => a + b, 0) / splitMeans.length;
     }
 
-    if (memberList.some((idx) => splitGroups.get(Math.floor(idx / 7) + 1).length >= 2)) {
+    if (memberList.some((idx) => splitGroups.get(members[idx].split).length >= 2)) {
       // Within-split variance (std within each split, averaged)
       const withinVars = Array.from(splitGroups.values())
         .filter((vals) => vals.length >= 2)
@@ -1020,18 +1023,18 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       <div>
         <div class="ux-member-grid-wrapper">
           <div class="ux-member-grid-controls">
-            <div class="ux-preset-chip" aria-pressed="true">All 42</div>
+            <div class="ux-preset-chip" aria-pressed="true">All ${members.length}</div>
             <div class="ux-preset-chip">One split</div>
-            <div class="ux-preset-chip">One replicate</div>
+            <div class="ux-preset-chip">Same member index</div>
             <div class="ux-preset-chip">Random</div>
             <div class="ux-preset-chip">Single</div>
-            <div class="ux-selection-label">Members selected: 42</div>
+            <div class="ux-selection-label">Members selected: ${members.length}</div>
           </div>
 
           <div class="ux-random-controls ux-hidden">
             <label>
               N:
-              <input type="range" class="ux-random-slider" min="2" max="42" value="10">
+              <input type="range" class="ux-random-slider" min="2" max="${members.length}" value="10">
               <span class="ux-random-value">10</span>
             </label>
             <button class="ux-reshuffle-btn">Reshuffle</button>
@@ -1225,7 +1228,7 @@ window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
       </div>
       <div class="ux-variance-legend-item">
         <div class="ux-variance-legend-box" style="background: ${colHpo};"></div>
-        <span>HPO (tuning)</span>
+        <span>${data.run.method === 'rashomon' ? 'Within split (Rashomon + refit)' : 'Within split (independent HPO)'}</span>
       </div>
     </div>
 
@@ -1287,7 +1290,7 @@ window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
   const splitPct = ((q05.split_var / total05) * 100).toFixed(1);
   const hpoPct = ((q05.hpo_var / total05) * 100).toFixed(1);
 
-  caption.textContent = `For the median, ${splitPct}% of member variance comes from which data a model saw, ${hpoPct}% from tuning randomness.`;
+  caption.textContent = `For the median, ${splitPct}% of member variance comes from which data a model saw, ${hpoPct}% from variation within a split (${data.run.method === 'rashomon' ? 'selected model choices and refit randomness' : 'independent HPO searches'}).`;
 };
 
 // ============================================================================

@@ -81,6 +81,22 @@ const app = {
       </div>
     `;
     hero.innerHTML = heroHTML;
+    const resultsNotice = document.createElement('div');
+    resultsNotice.className = 'callout callout--info';
+    resultsNotice.setAttribute('role', 'note');
+    const currentResults = this.data.run.method === 'rashomon';
+    const noticeTitle = document.createElement('strong');
+    noticeTitle.textContent = currentResults ? 'Displayed results · Rashomon ensemble' : 'Displayed results · earlier independent-HPO ensemble';
+    const noticeBody = document.createElement('p');
+    noticeBody.textContent = `Run: ${this.data.run.name} (${this.data.run.years.join('–')}). ` +
+      (currentResults ? 'The charts below use the completed Rashomon run.' : 'The methods below describe the current Rashomon design. All counts, scores and interactive charts still use this earlier run, which required SSH and used independent HPO searches. They do not evaluate the new method.');
+    const noticeContent = document.createElement('div');
+    noticeContent.className = 'callout-content';
+    noticeTitle.className = 'callout-title';
+    noticeBody.className = 'callout-body';
+    noticeContent.append(noticeTitle, noticeBody);
+    resultsNotice.appendChild(noticeContent);
+    hero.querySelector('.section__inner').appendChild(resultsNotice);
 
     // Content sections
     const contentDiv = document.getElementById('content');
@@ -324,12 +340,12 @@ const app = {
     const splitControl = document.createElement('div');
     splitControl.className = 'segmented-control';
     splitControl.innerHTML = '<label>Split</label>';
-    for (let i = 1; i <= 6; i++) {
+    for (let i = 1; i <= this.data.run.n_splits; i++) {
       const btn = document.createElement('button');
       btn.textContent = `${i}`;
       btn.className = i === 1 ? 'active' : '';
       btn.setAttribute('aria-pressed', i === 1 ? 'true' : 'false');
-      btn.addEventListener('click', () => this.updateSplitExplorer(i, 1, explorer));
+      btn.addEventListener('click', () => this.updateSplitExplorer(i, Number(explorer.dataset.innerFold || 1), explorer));
       splitControl.appendChild(btn);
     }
     explorer.appendChild(splitControl);
@@ -347,12 +363,12 @@ const app = {
     const innerControl = document.createElement('div');
     innerControl.className = 'segmented-control';
     innerControl.innerHTML = '<label>Inner fold</label>';
-    for (let i = 1; i <= 5; i++) {
+    for (let i = 1; i <= blocks.length - 2; i++) {
       const btn = document.createElement('button');
       btn.textContent = `${i}`;
       btn.className = i === 1 ? 'active' : '';
       btn.setAttribute('aria-pressed', i === 1 ? 'true' : 'false');
-      btn.addEventListener('click', () => this.updateSplitExplorer(1, i, explorer));
+      btn.addEventListener('click', () => this.updateSplitExplorer(Number(explorer.dataset.split || 1), i, explorer));
       innerControl.appendChild(btn);
     }
     visualization.appendChild(innerControl);
@@ -379,6 +395,8 @@ const app = {
   },
 
   updateSplitExplorer(split, innerFold, container) {
+    container.dataset.split = split;
+    container.dataset.innerFold = innerFold;
     const blocks = this.data.blocks;
     const testBlock = 0;
     const validationBlock = split;
@@ -452,8 +470,8 @@ const app = {
 
   renderMemberGrid(container, block, ctx) {
     const members = this.data.members;
-    const splits = 6;
-    const replicates = 7;
+    const splits = this.data.run.n_splits;
+    const replicates = this.data.run.n_replicates;
 
     const gridContainer = document.createElement('div');
     gridContainer.className = 'member-grid-container';
@@ -502,7 +520,7 @@ const app = {
     for (let r = 0; r < replicates; r++) {
       const cell = document.createElement('div');
       cell.className = 'grid-cell header';
-      cell.textContent = `HPO ${r}`;
+      cell.textContent = `Member ${r}`;
       headerRowTop.appendChild(cell);
     }
     gridContent.appendChild(headerRowTop);
@@ -571,11 +589,21 @@ const app = {
           <dt>Depth</dt><dd>${member.params.depth.toFixed(1)}</dd>
           <dt>L2 leaf reg</dt><dd>${member.params.l2_leaf_reg.toFixed(4)}</dd>
           <dt>Learning rate</dt><dd>${member.params.learning_rate.toFixed(4)}</dd>
-          <dt>Min data in leaf</dt><dd>${member.params.min_data_in_leaf.toFixed(0)}</dd>
+          ${member.params.min_data_in_leaf == null ? '' : `<dt>Min data in leaf</dt><dd>${member.params.min_data_in_leaf.toFixed(0)}</dd>`}
           <dt>Random strength</dt><dd>${member.params.random_strength.toFixed(4)}</dd>
         </dl>
       </div>
 
+      ${member.trial_number == null ? '' : `
+      <div class="detail-section">
+        <h5>Trial selection</h5>
+        <dl class="detail-list">
+          <dt>Trial</dt><dd>${member.trial_number}</dd>
+          <dt>Loss rank</dt><dd>${member.loss_rank}</dd>
+          <dt>Selection</dt><dd>${member.in_rashomon_set ? 'Within Rashomon tolerance' : 'Next-best fill-in'}</dd>
+          <dt>Dropped features</dt><dd>${this.escape(member.dropped_features.join(', ') || 'None')}</dd>
+        </dl>
+      </div>`}
       <div class="detail-section">
         <h5>Training</h5>
         <dl class="detail-list">

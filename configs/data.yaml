@@ -16,7 +16,6 @@ data:
   - temperature
   - ssh_adt
   - chl_globcolour
-  - mld_dens_soda
   - nitrate
   - phosphate
   - silicate
