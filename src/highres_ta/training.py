@@ -23,6 +23,7 @@ from .target_filtering import drop_bad_quality_talk, drop_extreme_salinities
 from .train_test_split import SPLIT_NAMES, split_indices, tuning_folds
 
 ROOT = Path(dotenv.find_dotenv("pyproject.toml")).parent
+CONFIG_DIR = ROOT / "configs"
 
 
 @dataclass(frozen=True)
@@ -40,11 +41,18 @@ class Member:
 
 
 
-def load_config(path: Path) -> dict[str, Any]:
-    with path.open() as handle:
-        config = yaml.safe_load(handle)
-    if not isinstance(config, dict):
-        raise TypeError(f"Configuration in {path} must be a mapping.")
+def load_config(path: Path = CONFIG_DIR) -> dict[str, Any]:
+    """Load one YAML file, or merge every ``*.yaml`` in a directory (top-level keys must be unique)."""
+    path = Path(path)
+    files = sorted(path.glob("*.yaml")) if path.is_dir() else [path]
+    config: dict[str, Any] = {}
+    for file in files:
+        content = yaml.safe_load(file.read_text())
+        if not isinstance(content, dict):
+            raise TypeError(f"Configuration in {file} must be a mapping.")
+        if duplicates := config.keys() & content.keys():
+            raise ValueError(f"Duplicate top-level keys {sorted(duplicates)} in {file}.")
+        config.update(content)
     return config
 
 
@@ -69,11 +77,11 @@ def prepare_data(
 
     if show_all_columns:
         logger.info(
-            "\n" + str(load_data(str(resolve_path(data_config["parquet_glob"]))).columns)
+            "\n" + str(load_data(str(resolve_path(config["paths"]["training_data"]))).columns)
         )
 
     data = (
-        load_data(str(resolve_path(data_config["parquet_glob"])))[required_columns]
+        load_data(str(resolve_path(config["paths"]["training_data"])))[required_columns]
         .set_index(coordinate_columns, drop=False)
         .pipe(
             drop_extreme_salinities,
@@ -83,7 +91,7 @@ def prepare_data(
         )
         .pipe(
             add_talk_adjustment,
-            fname=str(resolve_path(data_config["talk_adjustment_csv"])),
+            fname=str(resolve_path(config["paths"]["talk_adjustment_csv"])),
         )
         .pipe(drop_bad_quality_talk)
         .dropna(subset=data_config["non_null_columns"])
@@ -363,7 +371,7 @@ def train_member(
     optuna_jobs: int,
     fingerprint: str,
 ) -> Path:
-    output_dir = resolve_path(config["output_dir"])
+    output_dir = resolve_path(config["paths"]["output_dir"])
     feature_names = config["data"]["feature_names"]
     target_name = config["data"]["target_name"]
 
@@ -425,7 +433,7 @@ def summarize_ensemble_test(
     members: Sequence[Member],
     fingerprint: str,
 ) -> None:
-    output_dir = resolve_path(config["output_dir"])
+    output_dir = resolve_path(config["paths"]["output_dir"])
     paths = [output_dir / "predictions" / f"{member.name}_test.parquet" for member in members]
     missing = [path for path in paths if not path.exists()]
     if missing:
@@ -489,7 +497,7 @@ def summarize_ensemble_test(
 
 
 def assemble_ensemble(config: dict[str, Any], members: Sequence[Member], fingerprint: str) -> Path:
-    output_dir = resolve_path(config["output_dir"])
+    output_dir = resolve_path(config["paths"]["output_dir"])
     model_paths = [output_dir / "models" / f"quantile_{member.name}.joblib" for member in members]
     missing = [path for path in model_paths if not path.exists()]
     if missing:

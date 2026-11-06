@@ -17,7 +17,7 @@ uv run python -m unittest tests.test_quantiles            # one module
 uv run python -m unittest tests.test_split_hpo_ensemble.<TestClass>.<test_method>
 ```
 
-Training (`scripts/train_quantile_ensemble.py`, typer CLI, config `scripts/quantile_ensemble_config.yaml`):
+Training (`scripts/train_quantile_ensemble.py`, typer CLI, config from `configs/`):
 
 ```bash
 uv run python scripts/train_quantile_ensemble.py --dry-run                     # load data + validate splits only
@@ -26,7 +26,11 @@ uv run python scripts/train_quantile_ensemble.py --stage all                   #
 uv run python scripts/train_quantile_ensemble.py --stage assemble              # assemble from existing members
 ```
 
-Inference: `uv run python scripts/inference.py <model_path> <zarr_out> [--max-cpus N] [--aggregation mean|median]` (writes per-date zarr of member predictions + variance decomposition; aggregation defaults to what the ensemble was saved with).
+Inference: `uv run python scripts/inference.py` — all settings from `configs/inference.yaml`; CLI options (`--model-path`, `--zarr-out`, `--start-date`, `--end-date`, `--n-workers`, `--max-cpus`, `--aggregation`) override. `ta.create_output_template` first creates the output zarr (NaN-filled, full grid, all requested time steps, layout taken from one real prediction); each date is then written with `to_zarr(region="auto")` by concurrent workers. An existing store is reused (resume) if it covers the requested times on the same grid, else `ValueError`. Transient HTTP errors from the remote store are retried per date (`N_ATTEMPTS`); any date that still fails makes the script exit 1. `aggregation: null` uses what the ensemble was saved with.
+
+## Configuration
+
+`configs/*.yaml`, one file per concern, each owning distinct top-level keys: `paths.yaml` (`paths:` — every file location and URL), `data.yaml` (`data:`), `training.yaml` (`model:`, `cross_validation:`, `optimization:`, `evaluation:`, `ensemble:`), `inference.yaml` (`inference:`). `ta.load_config()` merges the whole folder (error on duplicate top-level keys) or loads one file; scripts take `--config`. Relative paths resolve against the repo root, URLs pass through. Keep paths in `paths.yaml` — no env vars or hard-coded paths in code.
 
 Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.json` with `uv run python web/build_data.py` (see `web/README.md` — edit text in `content.json`, never hand-edit `data.json`).
 
@@ -45,11 +49,11 @@ Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.j
 - `quantile_ensemble.decompose_variance` splits member variance into split + HPO terms via the law of total variance (predictions shaped `(splits, replicates, obs, quantiles)`).
 - Optuna studies are SQLite-backed and resumable; a data fingerprint is stored in metadata to detect changed inputs.
 
-**Outputs** go to `config.output_dir` (e.g. `models/highresTA-<date>/`, gitignored): `studies/*.sqlite3`, `splits/split_k.parquet`, `predictions/<member>_{validation,test}.parquet`, `models/quantile_split_k_hpo_r.{joblib,json}`, `models/quantile_ensemble.joblib`, `models/manifest.json`.
+**Outputs** go to `paths.output_dir` (e.g. `models/highresTA-<date>/`, gitignored): `studies/*.sqlite3`, `splits/split_k.parquet`, `predictions/<member>_{validation,test}.parquet`, `models/quantile_split_k_hpo_r.{joblib,json}`, `models/quantile_ensemble.joblib`, `models/manifest.json`.
 
-**Features:** configured in the YAML. `engineered_feature_names` (spherical `ncoord_x/y/z` from lat/lon, cyclical day-of-year) are computed in `features.py` and must not be read from the parquet. Data prep in `prepare_data` also applies salinity bounds, TA QC flag filtering (`target_filtering.py`) and GLODAP cruise adjustments (`dataio.add_talk_adjustment`, CSV in `data/`).
+**Features:** configured in `configs/data.yaml`. `engineered_feature_names` (spherical `ncoord_x/y/z` from lat/lon, cyclical day-of-year) are computed in `features.py` and must not be read from the parquet. Data prep in `prepare_data` also applies salinity bounds, TA QC flag filtering (`target_filtering.py`) and GLODAP cruise adjustments (`dataio.add_talk_adjustment`, CSV in `data/`).
 
-**Inference data paths** in `src/highres_ta/inference.py` default to the ETH `/net/sea/work/...` filesystem; override with `HIGHRES_TA_FNAME_PROCESSED` / `_BATHYMETRY` / `_NUTRIENTS` env vars or a repo-root `.env` (see `.env.example`).
+**Inference inputs** (`src/highres_ta/inference.py`): gridded predictors come from the public OceanSODA-ETHZv2 GeoZarr pyramid on `data.up.ethz.ch` (level `0` = 0.25°; opened over HTTP), bathymetry from a local netCDF (both in `paths.yaml`). `open_inference_data` builds training-named features from `inference.feature_sources` (fillna chain in listed order), and this is where product/unit mismatches live: SST is converted K→°C from the `units` attr, elevation (`positive: up`) → positive depth, `chl_cci_gapfilled` stands in for `chl_globcolour`, `mld_soda` for `mld_dens_soda`.
 
 Notebooks `01`–`05` are numbered analysis steps (EDA, training variants, validation, output checks). `scripts/get_timeseries_stations.py` fetches station time series (BATS, HOT, ESTOC, …) for evaluation.
 

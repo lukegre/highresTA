@@ -1,5 +1,5 @@
 Assemble data
-- [ ] `uv run python train_quantile_ensemble.py --stage assemble --config quantile_ensemble_config.yaml`
+- [ ] `uv run python scripts/train_quantile_ensemble.py --stage assemble`
 
 Uncertainty and evaluation
 - [ ] for each member, predict the validation (depends on seed - data saved in models/<model>/splits) and test folds (same for all folds) - see schematic

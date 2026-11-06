@@ -1,0 +1,9 @@
+# Data and output locations. Relative paths resolve against the repo root; URLs are used as-is.
+paths:
+  training_data: data/training/*.pq
+  talk_adjustment_csv: data/glodapv2_adjustments_last_updated_on_2026_07_09.csv
+  output_dir: models/highresTA-271106/
+  # Public OceanSODA-ETHZv2 GeoZarr pyramid (level 0 = 0.25 deg, opened over HTTP)
+  gridded_predictors: https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.OceanSODA_ETHZv2-gridded_data-8D_025deg-pyramid.zarr
+  # Elevation netCDF (positive up); converted to positive depth
+  bathymetry: data/training/bathymetry_etopo2022_25km.nc

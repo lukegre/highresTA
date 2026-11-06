@@ -10,7 +10,6 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
@@ -21,13 +20,13 @@ QS = [0.1, 0.5, 0.9]
 N_SAMPLE = 700
 rng = np.random.default_rng(0)
 
-config = yaml.safe_load((ROOT / "scripts" / "quantile_ensemble_config.yaml").read_text())
+config = ta.load_config()
 dc = config["data"]
 # the finished run required ssh_adt (hence 1993+); reproduce that
 non_null = dc["non_null_columns"] + ["ssh_adt"]
 
 # ---- preprocessing funnel -------------------------------------------------
-raw = ta.load_data(str(ROOT / dc["parquet_glob"]))
+raw = ta.load_data(str(ROOT / config["paths"]["training_data"]))
 raw = raw[raw.year.between(1993, 2022)] if "year" in raw else raw
 raw_feat = [n for n in dc["feature_names"] if n not in dc["engineered_feature_names"]]
 cols = list(dict.fromkeys(dc["coordinate_columns"] + raw_feat + ["talk"] + dc["quality_columns"]))
@@ -35,7 +34,7 @@ df = raw[cols].set_index(dc["coordinate_columns"], drop=False)
 funnel = [("Collocated bottle samples (1993-2021)", len(df), df.expocode.nunique())]
 df = ta.drop_extreme_salinities(df, min=dc["minimum_salinity"], max=dc["maximum_salinity"])
 funnel.append(("Salinity within 20-40", len(df), df.expocode.nunique()))
-df = ta.add_talk_adjustment(df, fname=str(ROOT / dc["talk_adjustment_csv"]))
+df = ta.add_talk_adjustment(df, fname=str(ROOT / config["paths"]["talk_adjustment_csv"]))
 df = ta.drop_bad_quality_talk(df)
 funnel.append(("Good TA flag and |adjustment| <= 6 umol/kg", len(df), df.expocode.nunique()))
 df = df.dropna(subset=non_null)

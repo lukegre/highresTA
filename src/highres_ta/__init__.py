@@ -3,6 +3,7 @@ from .estimators import CatBoostResidualRegressor
 from .features import add_cyclical_dayofyear, add_spherical_coords
 from .inference import (
     calc_variance_decomposition,
+    create_output_template,
     open_gridded_data,
     open_inference_data,
     predict,
@@ -28,6 +29,7 @@ __all__ = [
     "add_spherical_coords",
     "add_talk_adjustment",
     "calc_variance_decomposition",
+    "create_output_template",
     "decompose_variance",
     "drop_bad_quality_talk",
     "drop_extreme_salinities",

@@ -1,8 +1,8 @@
-import os
 import string
+from pathlib import Path
 from functools import lru_cache
+from typing import Any
 
-import dotenv
 import numpy as np
 import pandas as pd
 import xarray as xr
@@ -11,33 +11,46 @@ from loguru import logger
 from highres_ta.quantile_ensemble import QuantileRegressionEnsemble
 
 from .features import latlon_to_spherical_coords
+from .training import load_config, resolve_path
 
-dotenv.load_dotenv()
 
-FNAME_PROCESSED = os.environ.get(
-    "HIGHRES_TA_FNAME_PROCESSED",
-    "/net/sea/work/gregorl/projects/oceansoda_v2/data/processed/OceanSODA_ETHZv2-gridded_data-8D_025deg.zarr",
-)
-FNAME_BATHYMETRY = os.environ.get(
-    "HIGHRES_TA_FNAME_BATHYMETRY",
-    "/net/sea/work/datasets/grd/ocean/2d/obs/bathymetry/ETOPO1/ETOPO15_mean_bath.nc",
-)
-FNAME_NUTRIENTS = os.environ.get(
-    "HIGHRES_TA_FNAME_NUTRIENTS",
-    "/net/sea/work/gregorl/projects/OceanSODA-ETHZv2/data-in/carbsys/nutrients_woa18_t46y720x1440.zarr",
-)
+def _location(value: str) -> str:
+    """Repo-relative paths become absolute; URLs pass through untouched."""
+    return str(value) if "://" in str(value) else str(resolve_path(value))
+
+
+def open_processed_zarr(fname: str) -> xr.Dataset:
+    """Open the gridded predictors; for a multiscale pyramid, use its full-resolution level."""
+    storage_options = {"client_kwargs": {"trust_env": True}} if fname.startswith("http") else None
+    ds = xr.open_zarr(fname, storage_options=storage_options)
+    if "multiscales" in ds.attrs:
+        level = ds.attrs["multiscales"]["layout"][0]["asset"]
+        ds = xr.open_zarr(fname, group=level, storage_options=storage_options)
+    return ds
+
+
+def open_bottomdepth(fname: str) -> xr.DataArray:
+    """Open bathymetry as positive depth (m), the convention used in the training data."""
+    da = xr.open_dataset(fname)
+    da = da.rename({k: v for k, v in {"latitude": "lat", "longitude": "lon"}.items() if k in da.dims})
+    da = da[list(da.data_vars)[0]]
+    if da.attrs.get("positive") == "up":
+        da = -da
+    return da
+
+
+def to_celsius(da: xr.DataArray) -> xr.DataArray:
+    """Training temperatures are in °C; convert fields whose units say Kelvin."""
+    if da.attrs.get("units", "").lower() in ("k", "kelvin"):
+        return da - 273.15
+    return da
 
 
 @lru_cache(1)
-def open_gridded_data(fname_processed=FNAME_PROCESSED, fname_bathymetry=FNAME_BATHYMETRY):
-    data_8D_025deg = xr.open_zarr(fname_processed)
+def _open_gridded_data(fname_processed: str, fname_bathymetry: str) -> xr.Dataset:
+    data_8D_025deg = open_processed_zarr(fname_processed)
 
-    bottomdepth = (
-        xr
-        .open_dataarray(fname_bathymetry)
-        .rename({"latitude": "lat", "longitude": "lon"})
-        .interp_like(data_8D_025deg)
-    )
+    bottomdepth = open_bottomdepth(fname_bathymetry).interp_like(data_8D_025deg)
     coords = bottomdepth.to_series().index.to_frame()
     ncoords = latlon_to_spherical_coords(coords.lat, coords.lon).to_xarray()
 
@@ -48,25 +61,30 @@ def open_gridded_data(fname_processed=FNAME_PROCESSED, fname_bathymetry=FNAME_BA
     return data_8D_025deg.astype(np.float32)
 
 
-@lru_cache(1)
-def open_inference_data(x_names: tuple[str, ...]):
-    ds = open_gridded_data()
-    x_names_list = list(x_names)
+def open_gridded_data(config: dict[str, Any] | None = None) -> xr.Dataset:
+    """Gridded predictors plus bathymetry and spherical coordinates, with paths from ``config``."""
+    paths = (config or load_config())["paths"]
+    return _open_gridded_data(_location(paths["gridded_predictors"]), _location(paths["bathymetry"]))
+
+
+def open_inference_data(
+    config: dict[str, Any] | None = None, x_names: list[str] | tuple[str, ...] | None = None
+) -> xr.Dataset:
+    """Features named as in training. ``x_names`` defaults to ``config["data"]["feature_names"]``."""
+    config = config or load_config()
+    ds = open_gridded_data(config)
+    sources = config["inference"]["feature_sources"]
 
     features = xr.Dataset()
-    features["salinity"] = ds.sss_cci.fillna(ds.sss_soda).fillna(ds.sss_multi_nrt)
-    features["temperature"] = ds.sst_cci.fillna(ds.sst_c3s_icdr)
-    features["ssh_adt"] = ds.adt_duacs
-    features["bottomdepth"] = ds.bottomdepth
-    features["silicate"] = ds.silicate_woa
-    features["nitrate"] = ds.nitrate_woa
-    features["phosphate"] = ds.phosphate_woa
-    features["ncoord_x"] = ds.ncoord_x
-    features["ncoord_y"] = ds.ncoord_y
-    features["ncoord_z"] = ds.ncoord_z
-
-    features = features[x_names_list]
-
+    for name in x_names or config["data"]["feature_names"]:
+        if name in sources:
+            # first source wins, later ones fill its gaps
+            first, *rest = (to_celsius(ds[v]) for v in sources[name])
+            for da in rest:
+                first = first.fillna(da)
+            features[name] = first
+        else:
+            features[name] = ds[name]  # bottomdepth, ncoord_*
     return features
 
 
@@ -184,3 +202,40 @@ def calc_variance_decomposition(da: xr.DataArray) -> xr.Dataset:
         "talk_median": talk_median,
         "talk_var": variance_components.to_array(dim="variance_type"),
     })
+
+
+def create_output_template(
+    model: QuantileRegressionEnsemble,
+    features: xr.Dataset,
+    dates: list,
+    zarr_fname_out: str,
+    chunks: dict,
+) -> None:
+    """Create the output zarr (metadata only, NaN-filled) so dates can be written with ``region="auto"``.
+
+    The layout comes from one real prediction, expanded to the full lat/lon grid of ``features`` and
+    to the time steps that ``dates`` select. An existing store is kept (to resume or add dates) after
+    checking that it covers every requested time step on the same grid.
+    """
+    times = pd.DatetimeIndex(features.time.sel(time=list(dates), method="nearest").values).unique().sort_values()
+
+    if Path(zarr_fname_out).exists():
+        existing = xr.open_zarr(zarr_fname_out)
+        missing = times.difference(pd.DatetimeIndex(existing.time.values))
+        if len(missing) > 0:
+            raise ValueError(
+                f"{zarr_fname_out} lacks {len(missing)} requested time steps (first: {missing[0]}); "
+                "use a new output path or delete the store."
+            )
+        for dim in ("lat", "lon"):
+            if not np.array_equal(existing[dim].values, features[dim].values):
+                raise ValueError(f"{zarr_fname_out} has a different {dim} grid than the inference data.")
+        logger.info(f"Using existing output store {zarr_fname_out}")
+        return
+
+    first = predict(model, features, dates[0]).pipe(calc_variance_decomposition)
+    template = xr.full_like(
+        first.reindex(lat=features.lat, lon=features.lon, time=times).chunk(), np.nan
+    ).chunk(chunks)
+    logger.info(f"Creating output store {zarr_fname_out} with dims {dict(template.sizes)}")
+    template.to_zarr(zarr_fname_out, compute=False, zarr_format=2)

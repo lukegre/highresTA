@@ -1,34 +1,3 @@
-output_dir: models/highresTA-271106/
-
-data:
-  parquet_glob: data/training/*.pq
-  talk_adjustment_csv: data/glodapv2_adjustments_last_updated_on_2026_07_09.csv
-  target_name: talk
-  coordinate_columns: [ expocode, time, lat, lon, depth ]
-  quality_columns: [ talkqc, talkf ]
-  non_null_columns: [ talk, salinity, temperature, nitrate ]
-  minimum_salinity: 20
-  maximum_salinity: 40
-  engineered_feature_names:
-  - ncoord_x
-  - ncoord_y
-  - ncoord_z
-  - dayofyear_sin
-  - dayofyear_cos
-  feature_names:
-  - salinity
-  - temperature
-  - ssh_adt
-  - chl_globcolour
-  - mld_dens_soda
-  - nitrate
-  - phosphate
-  - silicate
-  - bottomdepth
-  - ncoord_x
-  - ncoord_y
-  - ncoord_z
-
 model:
   linear_features: [ salinity ]
   polynomial_degree: 1

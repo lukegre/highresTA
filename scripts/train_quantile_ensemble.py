@@ -38,7 +38,7 @@ import typer
 from loguru import logger
 
 from highres_ta.training import (
-    ROOT,
+    CONFIG_DIR,
     assemble_ensemble,
     data_fingerprint,
     load_config,
@@ -50,7 +50,6 @@ from highres_ta.training import (
 )
 from highres_ta.train_test_split import outer_blocks, split_indices, validate_split, write_split
 
-DEFAULT_CONFIG = ROOT / "scripts" / "quantile_ensemble_config.yaml"
 app = typer.Typer()
 
 
@@ -66,13 +65,13 @@ def main(
         Path,
         typer.Option(
             "--config",
-            help="Path to the ensemble configuration file.",
+            help="Configuration directory (all *.yaml merged) or a single YAML file.",
             exists=True,
             file_okay=True,
-            dir_okay=False,
+            dir_okay=True,
             readable=True,
         ),
-    ] = DEFAULT_CONFIG,
+    ] = CONFIG_DIR,
     stage: Annotated[
         Stage,
         typer.Option(help="Pipeline stage to run. Existing Optuna studies are resumed."),
@@ -113,7 +112,7 @@ def main(
     if maximum_iterations is not None:
         config["model"]["maximum_iterations"] = maximum_iterations
     if output_dir is not None:
-        config["output_dir"] = str(output_dir)
+        config["paths"]["output_dir"] = str(output_dir)
     selected = members(config, split, hpo_replicate)
     all_members = members(config)
     target_trials = n_trials or int(config["optimization"]["n_trials"])
@@ -136,7 +135,7 @@ def main(
         return
 
     if stage in (Stage.TRAIN, Stage.ALL):
-        output_dir = resolve_path(config["output_dir"])
+        output_dir = resolve_path(config["paths"]["output_dir"])
         for index in selected_splits:
             split_dict = split_indices(blocks, index)
             validate_split(data, split_dict, index)

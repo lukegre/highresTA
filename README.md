@@ -25,9 +25,22 @@ Requires [uv](https://docs.astral.sh/uv/) and Python 3.11.
 uv sync
 ```
 
-Training data are expected as parquet files in `data/training/` (not tracked in git).
-Paths, features, quantiles and cross-validation settings are set in
-[`scripts/quantile_ensemble_config.yaml`](scripts/quantile_ensemble_config.yaml).
+Training data (parquet), the GLODAP adjustment table and the bathymetry file are expected in
+`data/` (not tracked in git).
+
+## Configuration
+
+All settings live in [`configs/`](configs/), one YAML file per concern:
+
+| File | Contents |
+|---|---|
+| `paths.yaml` | Every file location: training data, adjustment table, output directory, gridded predictors (remote OceanSODA-ETHZv2 store), bathymetry |
+| `data.yaml` | Target, columns, quality filters, feature names |
+| `training.yaml` | Model, cross-validation, hyperparameter search, ensemble and evaluation settings |
+| `inference.yaml` | Model path, output zarr, date range, parallelism, and which gridded variables feed each feature |
+
+Relative paths resolve against the repository root. `ta.load_config()` merges all files in the
+folder; scripts take `--config` to point at another folder or a single file.
 
 ## Usage
 
@@ -41,11 +54,14 @@ uv run python scripts/train_quantile_ensemble.py --stage all    # train all memb
 Run inference over the gridded predictors:
 
 ```bash
-uv run python scripts/inference.py models/<run>/models/quantile_ensemble.joblib <output.zarr>
+uv run python scripts/inference.py                       # everything from configs/inference.yaml
+uv run python scripts/inference.py --start-date 2020-01-01 --end-date 2020-12-31
 ```
 
-The input data paths default to the ETH `/net/sea` file system. To run elsewhere, copy
-`.env.example` to `.env` and set the `HIGHRES_TA_FNAME_*` paths.
+Gridded predictors are read over HTTP from the public OceanSODA-ETHZv2 store, so inference runs
+anywhere with network access. The output zarr is created on the first run; rerunning the same
+command on an existing store resumes it (dates are rewritten). Transient network errors are retried,
+and the script exits with code 1 if any date still fails.
 
 View the methods page:
 
