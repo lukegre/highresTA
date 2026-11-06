@@ -4,21 +4,26 @@ model:
   quantiles: [ 0.1, 0.5, 0.9 ]
   maximum_iterations: 1000
   early_stopping_rounds: 50
-  trial_thread_count: 12
-  final_thread_count: -1
 
 cross_validation:
   # One shared partition: block 0 always tests. Split k = 1..n_parts-1 validates on
-  # block k and trains on the remaining n_parts-2 blocks. Hyperparameters are tuned by
-  # leave-one-block-out CV over those training blocks, fixed for every replicate of a split.
+  # block k and trains on the remaining n_parts-2 blocks. Each split runs one study over
+  # leave-one-block-out CV on those training blocks; its members are different
+  # near-optimal trials from that study.
   # split_random_state is independent of the member seeds so every member shares
   # the same held-out test block.
   n_parts: 7
   split_random_state: 42
 
 optimization:
-  n_trials: 100
-  n_jobs: 5
+  n_trials: 300               # completed trials per split's study
+  n_startup_trials: 50        # random trials before TPE (also the pruner's warm-up)
+  protected_features: [salinity, temperature]   # never dropped
+  max_dropped_features: 2     # each trial ignores 0..this many other features
+  # Cores per split = parallel_trials × threads_per_trial. scripts/train_splits.sh runs
+  # every split as its own process, so total cores ≈ n_splits × that.
+  parallel_trials: 8     # concurrent Optuna trials within one split's study
+  threads_per_trial: 2   # CatBoost threads per fit
 
 evaluation:
   minimum_bottomdepth: 300
@@ -27,5 +32,7 @@ evaluation:
 
 ensemble:
   aggregation: mean
-  # HPO replicates r = 0..n-1 per split: independent Optuna studies (seed = 100 * split + r).
-  n_hpo_replicates: 7
+  # Members per split, picked from that split's single Optuna study: trials within
+  # rashomon_epsilon (relative) of the best inner-CV loss, chosen greedily for diversity.
+  n_members_per_split: 7
+  rashomon_epsilon: 0.02

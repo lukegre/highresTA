@@ -3,7 +3,7 @@ name = "highres_ta"
 version = "0.1.0"
 description = "ML reconstruction of high-resolution surface ocean total alkalinity with quantile-regression ensembles"
 readme = "README.md"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "aiohttp>=3.13.5",
     "bottleneck>=1.6.0",

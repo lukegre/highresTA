@@ -21,8 +21,9 @@ Training (`scripts/train_quantile_ensemble.py`, typer CLI, config from `configs/
 
 ```bash
 uv run python scripts/train_quantile_ensemble.py --dry-run                     # load data + validate splits only
-uv run python scripts/train_quantile_ensemble.py --stage train --split 1 --hpo-replicate 0 --n-trials 2 --optuna-jobs 1   # smoke test one member
+uv run python scripts/train_quantile_ensemble.py --stage train --split 1 --n-trials 8 --maximum-iterations 20 --parallel-trials 1 --threads-per-trial 2   # smoke test one split
 uv run python scripts/train_quantile_ensemble.py --stage all                   # train/resume all members, then assemble
+scripts/train_splits.sh                                                        # every split as its own parallel process (cores = n_splits × parallel_trials × threads_per_trial), then assemble; `SPLITS="1 2"` runs only those splits and skips assembly (run `--stage assemble` afterwards)
 uv run python scripts/train_quantile_ensemble.py --stage assemble              # assemble from existing members
 ```
 
@@ -42,14 +43,15 @@ Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.j
 
 **Model (`estimators.CatBoostResidualRegressor`):** a polynomial linear baseline on `linear_features` (salinity — TA is dominated by salinity) plus a CatBoost model fitted to the residuals. CatBoost kwargs are passed through `**catboost_kwargs` and exposed via custom `get_params`/`set_params` so it works with sklearn cloning/search; `loss_function` (e.g. `MultiQuantile:alpha=...`) determines `quantiles_`. Use `predict_quantiles` for the (n, n_quantiles) output.
 
-**Ensemble design (the non-obvious part, see docstring of `train_quantile_ensemble.py` and `docs/split_*schematic*`):**
+**Ensemble design (the non-obvious part, see docstring of `train_quantile_ensemble.py` and `docs/split_*schematic*`; the schematic still shows the previous per-replicate-HPO design):**
 - Data are partitioned once into `n_parts` blocks with `StratifiedGroupKFold` — grouped by cruise (`expocode`) to avoid leakage between spatially/temporally correlated samples, stratified by salinity bins (`train_test_split.py`). `split_random_state` is independent of member seeds.
 - Block 0 is the test set for **every** member and is never trained on.
-- Split `k` (1..n_parts-1) validates on block `k` and trains on the remaining blocks. Within each split, `n_hpo_replicates` independent Optuna studies (seed `100*k + r`) each produce one member. HPO uses leave-one-block-out CV inside the training blocks only.
-- `quantile_ensemble.decompose_variance` splits member variance into split + HPO terms via the law of total variance (predictions shaped `(splits, replicates, obs, quantiles)`).
-- Optuna studies are SQLite-backed and resumable; a data fingerprint is stored in metadata to detect changed inputs.
+- Split `k` (1..n_parts-1) validates on block `k` and trains on the remaining blocks. Each split runs **one** Optuna study (sampler seed `100*k`; TPE + percentile pruning) over CatBoost hyperparameters plus a categorical `dropped_features` (0..`max_dropped_features` non-protected features passed as `ignored_features`). HPO uses leave-one-block-out CV inside the training blocks only.
+- Members are chosen per split by Rashomon selection (`select_rashomon_members`): trials within `rashomon_epsilon` of the best inner-CV loss, picked greedily for diversity (dropped-feature Jaccard + normalised hyperparameter distance), `n_members_per_split` of them, each refitted with seed `100*k + r`.
+- `quantile_ensemble.decompose_variance` splits member variance into split + HPO terms via the law of total variance (predictions shaped `(splits, replicates, obs, quantiles)`; the replicate axis is the Rashomon member index within a split).
+- Optuna studies are SQLite-backed and resumable (heartbeat fails trials left RUNNING by a killed process); member selection is deterministic given the stored study; the study itself is only reproducible with `parallel_trials: 1`; a data fingerprint is stored in metadata to detect changed inputs.
 
-**Outputs** go to `paths.output_dir` (e.g. `models/highresTA-<date>/`, gitignored): `studies/*.sqlite3`, `splits/split_k.parquet`, `predictions/<member>_{validation,test}.parquet`, `models/quantile_split_k_hpo_r.{joblib,json}`, `models/quantile_ensemble.joblib`, `models/manifest.json`.
+**Outputs** go to `paths.output_dir` (e.g. `models/highresTA-<date>/`, gitignored): `studies/split_k.sqlite3`, `studies/split_k_rashomon.csv`, `splits/split_k.parquet`, `predictions/<member>_{validation,test}.parquet`, `models/quantile_split_k_member_r.{joblib,json}`, `models/quantile_ensemble.joblib`, `models/manifest.json`.
 
 **Features:** configured in `configs/data.yaml`. `engineered_feature_names` (spherical `ncoord_x/y/z` from lat/lon, cyclical day-of-year) are computed in `features.py` and must not be read from the parquet. Data prep in `prepare_data` also applies salinity bounds, TA QC flag filtering (`target_filtering.py`) and GLODAP cruise adjustments (`dataio.add_talk_adjustment`, CSV in `data/`).
 

@@ -12,8 +12,9 @@ ensemble of quantile regressors that give TA with an uncertainty estimate (10th,
 - **Splits:** the data are divided once into blocks, grouped by cruise and stratified by salinity.
   Block 0 is a held-out test set shared by all ensemble members.
 - **Ensemble:** each remaining block serves in turn as the validation set, and for each such split
-  several independent Optuna hyperparameter searches each produce one member.
-  The spread across members is decomposed into a data-split and a hyperparameter (HPO) component.
+  one Optuna study (hyperparameters plus which features to drop) is run, and several diverse
+  near-optimal trials (a Rashomon set) are refitted as members.
+  The spread across members is decomposed into a data-split and a within-split (Rashomon/HPO) component.
 
 Schematics are in [`docs/`](docs/), and a full methods page is in [`web/`](web/README.md).
 
@@ -49,6 +50,7 @@ Train the ensemble (Optuna studies are stored in SQLite and resume where they st
 ```bash
 uv run python scripts/train_quantile_ensemble.py --dry-run      # check the data splits only
 uv run python scripts/train_quantile_ensemble.py --stage all    # train all members and assemble the ensemble
+scripts/train_splits.sh                                          # same, but every split in parallel (see optimization: in configs/training.yaml)
 ```
 
 Run inference over the gridded predictors:
