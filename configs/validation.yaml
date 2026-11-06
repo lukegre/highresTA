@@ -1,0 +1,6 @@
+validation:
+  # Notebook 04 takes the median across members, including for this mean-saved ensemble.
+  aggregation: median
+  max_cpus: 42
+  coastal_depth: 500
+  salinity_products: [salinity, salt_soda, sss_multiobs, sss_cci]

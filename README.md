@@ -39,6 +39,7 @@ All settings live in [`configs/`](configs/), one YAML file per concern:
 | `data.yaml` | Target, columns, quality filters, feature names |
 | `training.yaml` | Model, cross-validation, hyperparameter search, ensemble and evaluation settings |
 | `inference.yaml` | Model path, output zarr, date range, parallelism, and which gridded variables feed each feature |
+| `validation.yaml` | Member aggregation, CPU limit, coastal depth threshold and alternate salinity products |
 
 Relative paths resolve against the repository root. `ta.load_config()` merges all files in the
 folder; scripts take `--config` to point at another folder or a single file.
@@ -64,6 +65,33 @@ Gridded predictors are read over HTTP from the public OceanSODA-ETHZv2 store, so
 anywhere with network access. The output zarr is created on the first run; rerunning the same
 command on an existing store resumes it (dates are rewritten). Transient network errors are retried,
 and the script exits with code 1 if any date still fails.
+
+Validate a saved model and generate PDF and interactive HTML reports:
+
+```bash
+uv run python scripts/validate_model.py
+uv run python scripts/validate_model.py --model-path models/highresTA-rashomon-20261106/models/quantile_ensemble.joblib
+```
+
+The default model is `<paths.output_dir>/models/quantile_ensemble.joblib`.
+Outputs go to `<run>/validation/`: `validation.pdf`, `validation.html`,
+`predictions.parquet`, `scores.csv` and `metadata.json`. Use `--output-dir`,
+`--max-cpus` or `--aggregation mean` to override defaults. The HTML is standalone
+and works offline, with dataset/product selectors and interactive charts. Maps use bundled
+public-domain Natural Earth 1:110m coastlines; chart widths are capped at 1,200 px
+and geographic axes preserve their aspect ratio.
+
+This formalises notebook 04: all members predict the common held-out test set;
+each validation block is predicted only by members trained for that split.
+The default is the median of member q50 predictions, as in the notebook (the saved
+ensemble uses a mean). Data preparation uses the run's saved `configs.json` and
+checks its fingerprint against `models/manifest.json` before using saved positional
+split IDs. Regional scores include sample counts, RMSE, MAE, median absolute error,
+Huber loss (delta 1.35), R² and mean/median bias (predicted minus observed).
+Coastal means absolute bottom depth ≤500 m; high latitude means |latitude| ≥60°.
+Alternate salinities retain original row positions and exclude missing or out-of-range
+replacement values. Each product's scores use its available observations, so sample
+counts can differ and comparisons are not paired. No gridded inference data are needed.
 
 View the methods page:
 
