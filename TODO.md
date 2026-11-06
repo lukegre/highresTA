@@ -14,5 +14,3 @@ Reporting
 - [ ] explain train test split 
 - [ ] uncertainty estimation approach
 
-NOTE: data is currently from 1993 onward only. Truncated early. need to update to 1982... 
-
