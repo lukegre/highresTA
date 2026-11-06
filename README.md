@@ -66,6 +66,19 @@ anywhere with network access. The output zarr is created on the first run; rerun
 command on an existing store resumes it (dates are rewritten). Transient network errors are retried,
 and the script exits with code 1 if any date still fails.
 
+Extract each saved member's CatBoost feature importance and plot the mean ± standard deviation:
+
+```bash
+uv run python scripts/feature_importance.py
+uv run python scripts/feature_importance.py --run-dir models/<run> --show
+```
+
+Outputs go to `<run>/feature_importance/`: `per_member.csv`, `summary.csv`, and a PNG/PDF
+bar plot. Zero importances are masked (blank in the per-member CSV) and excluded from
+each feature's statistics; `summary.csv` includes the contributing member count.
+Importances describe the
+boosted residual jointly across quantiles, excluding the separate linear salinity baseline.
+
 Validate a saved model and generate PDF and interactive HTML reports:
 
 ```bash

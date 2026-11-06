@@ -5,7 +5,7 @@ paths:
   # training data
   training_data: data/training/GLODAPv2023-raw_collocated.pq
   talk_adjustment_csv: data/glodapv2_adjustments_last_updated_on_2026_07_09.csv
+  # Elevation netCDF (positive up); converted to positive depth
   bathymetry: data/training/bathymetry_etopo2022_25km.nc
   # Public OceanSODA-ETHZv2 GeoZarr pyramid (level 0 = 0.25 deg, opened over HTTP)
-  gridded_predictors: https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.OceanSODA_ETHZv2-gridded_data-8D_025deg-pyramid.zarr
-  # Elevation netCDF (positive up); converted to positive depth
+  gridded_predictors: /net/sea/work/public/ftp/OceanSODA-ETHZv2/.OceanSODA_ETHZv2-gridded_data-8D_025deg-pyramid.zarr
