@@ -77,11 +77,13 @@ def swap_salinity(data: pd.DataFrame, raw: pd.DataFrame, product: str | Sequence
         product = [product]
     indexed = raw.set_index(list(coordinate_columns))
     indexed = indexed.loc[~indexed.index.duplicated(keep="first")]
-    values = indexed[product[0]].reindex(data.index)
-    for column in product[1:]:
-        values = values.fillna(indexed[column].reindex(data.index))
+    # Out-of-bounds values fall through to the next product (as in training.stack_salinity).
+    values = pd.Series(np.nan, index=data.index)
+    for column in product:
+        candidate = indexed[column].reindex(data.index)
+        values = values.fillna(candidate.where(candidate.between(minimum, maximum)))
     result = data.copy()
-    result[salinity_column] = values.where(values.between(minimum, maximum)).to_numpy()
+    result[salinity_column] = values.to_numpy()
     return result
 
 

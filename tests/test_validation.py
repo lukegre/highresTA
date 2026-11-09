@@ -76,9 +76,8 @@ class ValidationTests(unittest.TestCase):
         raw = self.raw.assign(a=[np.nan, 31.5, np.nan, 99.], b=[30.5, 32.5, np.nan, 33.5],
                               c=[1., 2., 36., 3.])
         out = swap_salinity(self.data, raw, ["a", "b", "c"], ["expocode", "lat", "lon"], 20, 40)
-        # row 3: a=99 is out of bounds and is not refilled (bounds apply after the chain)
-        self.assertEqual(out.salinity.isna().tolist(), [False, False, False, True])
-        self.assertEqual(out.salinity.iloc[:3].tolist(), [30.5, 31.5, 36.])
+        # row 3: a=99 is out of bounds, so it falls through to b (as in training.stack_salinity)
+        self.assertEqual(out.salinity.tolist(), [30.5, 31.5, 36., 33.5])
 
     def test_salinity_penalty_is_paired(self):
         def frame(name, predicted, delta, rows=(0, 1, 2, 3)):

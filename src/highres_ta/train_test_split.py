@@ -194,6 +194,8 @@ def outer_blocks(data: pd.DataFrame, config: dict[str, Any]) -> list[np.ndarray]
         test_index
         for _, test_index in make_train_test_folds(
             data,
+            # stratify on in situ salinity so blocks match when salinity is a gridded product
+            salinity_col_name="salinity_insitu" if "salinity_insitu" in data else "salinity",
             n_splits=n_parts,
             shuffle=True,
             random_state=int(cv_config["split_random_state"]),

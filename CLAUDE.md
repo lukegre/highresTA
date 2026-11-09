@@ -27,11 +27,13 @@ scripts/train_splits.sh                                                        #
 uv run python scripts/train_quantile_ensemble.py --stage assemble              # assemble from existing members
 ```
 
+Variants: `--override FILE` (repeatable; also on `validate_model.py`) deep-merges a YAML over the config, e.g. `scripts/train_splits.sh --override configs/variants/stacked_salinity.yaml` trains on gridded salinity (`data.salinity_source`: sss_cci, salt_soda, sss_multiobs fillna stack, fallback to in situ) into its own `output_dir`; rows, blocks and the test block match the in-situ model (blocks stratify on `salinity_insitu`). Keep `n_parts` unchanged in overlays (`train_splits.sh` reads the default config).
+
 Inference: `uv run python scripts/inference.py` — all settings from `configs/inference.yaml`; CLI options (`--model-path`, `--zarr-out`, `--start-date`, `--end-date`, `--n-workers`, `--max-cpus`, `--aggregation`) override. `ta.create_output_template` first creates the output zarr (NaN-filled, full grid, all requested time steps, layout taken from one real prediction); each date is then written with `to_zarr(region="auto")` by concurrent workers. An existing store is reused (resume) if it covers the requested times on the same grid, else `ValueError`. Transient HTTP errors from the remote store are retried per date (`N_ATTEMPTS`); any date that still fails makes the script exit 1. `aggregation: null` uses what the ensemble was saved with.
 
 ## Configuration
 
-`configs/*.yaml`, one file per concern, each owning distinct top-level keys: `paths.yaml` (`paths:` — every file location and URL), `data.yaml` (`data:`), `training.yaml` (`model:`, `cross_validation:`, `optimization:`, `evaluation:`, `ensemble:`), `inference.yaml` (`inference:`). `ta.load_config()` merges the whole folder (error on duplicate top-level keys) or loads one file; scripts take `--config`. Relative paths resolve against the repo root, URLs pass through. Keep paths in `paths.yaml` — no env vars or hard-coded paths in code.
+`configs/*.yaml`, one file per concern, each owning distinct top-level keys: `paths.yaml` (`paths:` — every file location and URL), `data.yaml` (`data:`), `training.yaml` (`model:`, `cross_validation:`, `optimization:`, `evaluation:`, `ensemble:`), `inference.yaml` (`inference:`). `ta.load_config()` merges the whole folder (error on duplicate top-level keys) or loads one file; scripts take `--config`. Relative paths resolve against the repo root, URLs pass through. Keep paths in `paths.yaml` — no env vars or hard-coded paths in code. `load_config(overrides=[...])` deep-merges variant files from `configs/variants/` (not globbed by default) on top; `data.salinity_source: null` is in situ salinity.
 
 Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.json` with `uv run python web/build_data.py` (see `web/README.md` — edit text in `content.json`, never hand-edit `data.json`).
 

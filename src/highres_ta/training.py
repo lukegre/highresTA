@@ -44,8 +44,22 @@ class Member:
         return f"split_{self.split}_member_{self.replicate}"
 
 
-def load_config(path: Path = CONFIG_DIR) -> dict[str, Any]:
-    """Load one YAML file, or merge every ``*.yaml`` in a directory (top-level keys must be unique)."""
+def deep_merge(base: dict[str, Any], override: dict[str, Any]) -> dict[str, Any]:
+    """Merge ``override`` into ``base``: nested mappings recursively, any other value replaced."""
+    merged = dict(base)
+    for key, value in override.items():
+        if isinstance(value, dict) and isinstance(merged.get(key), dict):
+            merged[key] = deep_merge(merged[key], value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def load_config(path: Path = CONFIG_DIR, overrides: Sequence[Path] = ()) -> dict[str, Any]:
+    """Load one YAML file, or merge every ``*.yaml`` in a directory (top-level keys must be unique).
+
+    Each file in ``overrides`` is then deep-merged on top, in order.
+    """
     path = Path(path)
     files = sorted(path.glob("*.yaml")) if path.is_dir() else [path]
     config: dict[str, Any] = {}
@@ -56,12 +70,42 @@ def load_config(path: Path = CONFIG_DIR) -> dict[str, Any]:
         if duplicates := config.keys() & content.keys():
             raise ValueError(f"Duplicate top-level keys {sorted(duplicates)} in {file}.")
         config.update(content)
+    for file in overrides:
+        content = yaml.safe_load(Path(file).read_text())
+        if not isinstance(content, dict):
+            raise TypeError(f"Configuration in {file} must be a mapping.")
+        config = deep_merge(config, content)
     return config
 
 
 def resolve_path(value: str | Path) -> Path:
     path = Path(value)
     return path if path.is_absolute() else ROOT / path
+
+
+def stack_salinity(
+    data: pd.DataFrame, sources: Sequence[str], minimum: float, maximum: float,
+    salinity_col_name: str = "salinity",
+) -> pd.DataFrame:
+    """Set salinity to the fillna stack of ``sources`` (in order), keeping in situ salinity
+    where the stack is missing or outside the bounds. In situ values go to ``salinity_insitu``."""
+    insitu = data[salinity_col_name]
+    stack = pd.Series(np.nan, index=data.index)
+    origin = pd.Series("in situ", index=data.index)
+    for name in sources:
+        take = stack.isna() & data[name].between(minimum, maximum)
+        stack[take] = data.loc[take, name]
+        origin[take] = name
+    data = data.copy()
+    data["salinity_insitu"] = insitu
+    data[salinity_col_name] = stack.fillna(insitu)
+    counts = origin.value_counts()
+    logger.info(
+        "Stacked salinity: {} (fallback to in situ: {:,} of {:,} rows)",
+        ", ".join(f"{name} {counts.get(name, 0):,}" for name in sources),
+        counts.get("in situ", 0), len(data),
+    )
+    return data
 
 
 def prepare_data(
@@ -74,9 +118,13 @@ def prepare_data(
     raw_feature_names = [name for name in feature_names if name not in engineered_feature_names]
     target_name = data_config["target_name"]
     quality_columns = data_config["quality_columns"]
+    salinity_source = data_config.get("salinity_source") or []
     required_columns = list(
-        dict.fromkeys(coordinate_columns + raw_feature_names + [target_name] + quality_columns)
+        dict.fromkeys(
+            coordinate_columns + raw_feature_names + [target_name] + quality_columns + list(salinity_source)
+        )
     )
+    output_columns = feature_names + [target_name] + (["salinity_insitu"] if salinity_source else [])
 
     if show_all_columns:
         logger.info(
@@ -99,10 +147,17 @@ def prepare_data(
         .pipe(drop_bad_quality_talk)
         .dropna(subset=data_config["non_null_columns"])
         .drop_duplicates(subset=coordinate_columns, keep="first")
-        .select_dtypes(include=[np.number])
+    )
+    if salinity_source:
+        data = stack_salinity(
+            data, salinity_source, data_config["minimum_salinity"],
+            data_config["maximum_salinity"], salinity_col_name,
+        )
+    data = (
+        data.select_dtypes(include=[np.number])
         .pipe(add_cyclical_dayofyear)
         .pipe(add_spherical_coords)
-        .loc[:, feature_names + [target_name]]
+        .loc[:, output_columns]
     )
     logger.info("Prepared {:,} observations with {} features", len(data), len(feature_names))
     return data

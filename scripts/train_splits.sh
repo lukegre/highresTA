@@ -3,6 +3,8 @@
 # Extra arguments are passed to every call, e.g.
 #   scripts/train_splits.sh --n-trials 8 --maximum-iterations 20
 # --split, --stage and --config are rejected (splits come from the default config).
+# --override FILE works, e.g. --override configs/variants/stacked_salinity.yaml; the split
+# list below reads the default config, so an overlay must not change cross_validation.n_parts.
 # Override the splits with SPLITS="1 2 3"; assembly is then skipped, so run
 #   uv run python scripts/train_quantile_ensemble.py --stage assemble
 # once every split has been trained.

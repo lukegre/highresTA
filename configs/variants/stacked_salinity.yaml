@@ -1,0 +1,7 @@
+# Train on gridded salinity (same fill order as inference.feature_sources.salinity) instead of
+# in situ salinity. Rows, split blocks and the test block are identical to the in situ model.
+#   scripts/train_splits.sh --override configs/variants/stacked_salinity.yaml
+paths:
+  output_dir: models/highresTA-stacked-salinity-20261109/
+data:
+  salinity_source: [sss_cci, salt_soda, sss_multiobs]

@@ -76,6 +76,16 @@ def main(
             readable=True,
         ),
     ] = CONFIG_DIR,
+    overrides: Annotated[
+        list[Path],
+        typer.Option(
+            "--override",
+            help="YAML file deep-merged over the configuration; repeatable, applied in order.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = [],
     stage: Annotated[
         Stage,
         typer.Option(help="Pipeline stage to run. Existing Optuna studies are resumed."),
@@ -112,7 +122,7 @@ def main(
     logger.remove()
     logger.add(sys.stderr, level="INFO")
 
-    config = load_config(config_path)
+    config = load_config(config_path, overrides)
     if maximum_iterations is not None:
         config["model"]["maximum_iterations"] = maximum_iterations
     if output_dir is not None:
