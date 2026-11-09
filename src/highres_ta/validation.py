@@ -63,15 +63,23 @@ def load_splits(split_files: Sequence[str | Path], data: pd.DataFrame, model,
     return dict(sorted(result.items()))
 
 
-def swap_salinity(data: pd.DataFrame, raw: pd.DataFrame, product: str,
+def swap_salinity(data: pd.DataFrame, raw: pd.DataFrame, product: str | Sequence[str],
                   coordinate_columns: Sequence[str], minimum: float, maximum: float,
                   salinity_column: str = "salinity") -> pd.DataFrame:
-    """Replace salinity using raw coordinate keys, retaining original positions."""
-    if product == salinity_column:
-        return data.copy()
+    """Replace salinity using raw coordinate keys, retaining original positions.
+
+    ``product`` may be a sequence of columns: the first is used, gaps are filled from
+    the following ones in order (like the inference ``feature_sources`` fillna chain).
+    """
+    if isinstance(product, str):
+        if product == salinity_column:
+            return data.copy()
+        product = [product]
     indexed = raw.set_index(list(coordinate_columns))
     indexed = indexed.loc[~indexed.index.duplicated(keep="first")]
-    values = indexed[product].reindex(data.index)
+    values = indexed[product[0]].reindex(data.index)
+    for column in product[1:]:
+        values = values.fillna(indexed[column].reindex(data.index))
     result = data.copy()
     result[salinity_column] = values.where(values.between(minimum, maximum)).to_numpy()
     return result
@@ -126,21 +134,25 @@ def predict_splits(data: pd.DataFrame, splits: Mapping[int, pd.DataFrame], model
     return pd.concat(frames, ignore_index=True)
 
 
-def regional_scores(predictions: pd.DataFrame, depth_threshold: float = 500) -> pd.DataFrame:
-    """Notebook regional scores; empty regions have n=0 and NaN metrics."""
+def _region_masks(predictions: pd.DataFrame, depth_threshold: float = 500) -> dict:
+    """Boolean masks for the regional breakdown (needs ``bottomdepth`` and ``lat``)."""
     coastal = predictions.bottomdepth.abs() <= depth_threshold
     high = predictions.lat.abs() >= 60
     # Missing coordinates are not silently classified as oceanic or low latitude.
     depth_known = predictions.bottomdepth.notna()
     lat_known = predictions.lat.notna()
-    masks = {"all": np.ones(len(predictions), dtype=bool), "coastal": coastal,
-             "oceanic": depth_known & ~coastal,
-             "oceanic & < 60deg": depth_known & ~coastal & lat_known & ~high,
-             "coastal & < 60deg": coastal & lat_known & ~high,
-             "coastal & > 60deg": coastal & high,
-             "oceanic & > 60deg": depth_known & ~coastal & high, "> 60deg": high}
+    return {"all": np.ones(len(predictions), dtype=bool), "coastal": coastal,
+            "oceanic": depth_known & ~coastal,
+            "oceanic & < 60deg": depth_known & ~coastal & lat_known & ~high,
+            "coastal & < 60deg": coastal & lat_known & ~high,
+            "coastal & > 60deg": coastal & high,
+            "oceanic & > 60deg": depth_known & ~coastal & high, "> 60deg": high}
+
+
+def regional_scores(predictions: pd.DataFrame, depth_threshold: float = 500) -> pd.DataFrame:
+    """Notebook regional scores; empty regions have n=0 and NaN metrics."""
     rows = []
-    for region, mask in masks.items():
+    for region, mask in _region_masks(predictions, depth_threshold).items():
         part = predictions.loc[mask, ["observed", "predicted"]].dropna()
         y = part.observed.to_numpy()
         residual = part.predicted.to_numpy() - y
@@ -154,6 +166,61 @@ def regional_scores(predictions: pd.DataFrame, depth_threshold: float = 500) -> 
                      "median_bias": np.median(residual) if n else np.nan,
                      "r2_score": r2_score(y, part.predicted) if n >= 2 else np.nan})
     return pd.DataFrame(rows)
+
+
+SALINITY_DELTA_BINS = [0, 0.1, 0.25, 0.5, 1, np.inf]
+
+
+def _penalty_metrics(part: pd.DataFrame) -> dict:
+    n = len(part)
+    if not n:
+        return {k: np.nan for k in ("rmse_reference", "rmse_product", "delta_rmse", "added_error",
+                                    "rms_prediction_shift", "mean_prediction_shift",
+                                    "rms_salinity_delta", "median_abs_salinity_delta")} | {"n": 0}
+    rmse_ref = np.sqrt(np.mean((part.predicted_reference - part.observed) ** 2))
+    rmse_prod = np.sqrt(np.mean((part.predicted - part.observed) ** 2))
+    shift = part.predicted - part.predicted_reference
+    return {"n": n, "rmse_reference": rmse_ref, "rmse_product": rmse_prod,
+            "delta_rmse": rmse_prod - rmse_ref,
+            "added_error": np.sqrt(max(rmse_prod ** 2 - rmse_ref ** 2, 0)),
+            "rms_prediction_shift": np.sqrt(np.mean(shift ** 2)),
+            "mean_prediction_shift": shift.mean(),
+            "rms_salinity_delta": np.sqrt(np.mean(part.salinity_delta ** 2)),
+            "median_abs_salinity_delta": part.salinity_delta.abs().median()}
+
+
+def salinity_penalty(predictions: pd.DataFrame, depth_threshold: float = 500,
+                     reference: str = "salinity") -> pd.DataFrame:
+    """Paired TA error penalty of each salinity product relative to the reference.
+
+    Rows are inner-joined on (dataset, row_id) and restricted to finite values, so
+    reference and product are scored on identical rows. ``rms_prediction_shift`` is the
+    TA change caused purely by the salinity input.
+    """
+    ref = predictions.loc[predictions.salinity_product == reference,
+                          ["dataset", "row_id", "predicted"]].rename(columns={"predicted": "predicted_reference"})
+    rows = []
+    for name in predictions.salinity_product.unique():
+        if name == reference:
+            continue
+        product = predictions.loc[predictions.salinity_product == name]
+        for dataset in ("test", "validation"):
+            paired = product.loc[product.dataset == dataset].merge(
+                ref.loc[ref.dataset == dataset], on=["dataset", "row_id"], how="inner")
+            paired = paired[np.isfinite(paired[["observed", "predicted", "predicted_reference"]]).all(axis=1)]
+            paired = paired.reset_index(drop=True)
+            groups = [("region", region, mask) for region, mask in _region_masks(paired, depth_threshold).items()]
+            bins = pd.cut(paired.salinity_delta.abs(), SALINITY_DELTA_BINS, right=False)
+            for interval in bins.cat.categories:
+                label = f"[{interval.left:g}, {interval.right:g})"
+                groups.append(("abs_salinity_delta", label, (bins == interval).to_numpy()))
+            for group_type, group, mask in groups:
+                rows.append({"dataset": dataset, "salinity_product": name, "group_type": group_type,
+                             "group": group, **_penalty_metrics(paired.loc[mask])})
+    columns = ["dataset", "salinity_product", "group_type", "group", "n", "rmse_reference",
+               "rmse_product", "delta_rmse", "added_error", "rms_prediction_shift",
+               "mean_prediction_shift", "rms_salinity_delta", "median_abs_salinity_delta"]
+    return pd.DataFrame(rows, columns=columns)
 
 
 def evaluate_model(model, data: pd.DataFrame, config: dict, split_files: Sequence[str | Path],

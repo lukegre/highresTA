@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from highres_ta.validation import evaluate_model, load_splits, swap_salinity
+from highres_ta.validation import evaluate_model, load_splits, salinity_penalty, swap_salinity
 
 
 class Member:
@@ -71,6 +71,49 @@ class ValidationTests(unittest.TestCase):
         empty = valid.query("region == 'oceanic'")
         self.assertEqual(empty.iloc[0]["n"], 0)
         self.assertTrue(np.isnan(empty.iloc[0].mean_bias))
+
+    def test_stacked_salinity_fills_in_order_with_bounds(self):
+        raw = self.raw.assign(a=[np.nan, 31.5, np.nan, 99.], b=[30.5, 32.5, np.nan, 33.5],
+                              c=[1., 2., 36., 3.])
+        out = swap_salinity(self.data, raw, ["a", "b", "c"], ["expocode", "lat", "lon"], 20, 40)
+        # row 3: a=99 is out of bounds and is not refilled (bounds apply after the chain)
+        self.assertEqual(out.salinity.isna().tolist(), [False, False, False, True])
+        self.assertEqual(out.salinity.iloc[:3].tolist(), [30.5, 31.5, 36.])
+
+    def test_salinity_penalty_is_paired(self):
+        def frame(name, predicted, delta, rows=(0, 1, 2, 3)):
+            return pd.DataFrame({"dataset": "test", "row_id": list(rows), "salinity_product": name,
+                                 "observed": [0.] * len(rows), "predicted": predicted,
+                                 "salinity_delta": delta, "lat": [0, 70, 10, 20][:len(rows)] if len(rows) == 4 else [0, 10, 20],
+                                 "bottomdepth": [100, 600, 700, 200][:len(rows)] if len(rows) == 4 else [100, 700, 200]})
+        ref = frame("salinity", [3., 3., 3., 3.], 0.)
+        same = frame("same", [3., 3., 3., 3.], 0.05)
+        # missing row 1 (and a different, huge prediction there in the reference must not matter)
+        ref.loc[1, "predicted"] = 100.
+        part = frame("part", [5., 5., 5.], 0.3, rows=(0, 2, 3))
+        pen = salinity_penalty(pd.concat([ref, same, part], ignore_index=True))
+        self.assertEqual(set(pen.group_type), {"region", "abs_salinity_delta"})
+        row = pen.query("salinity_product == 'same' and group == 'all'").iloc[0]
+        self.assertEqual(row.n, 4)
+        self.assertAlmostEqual(row.rms_prediction_shift, 97 * 0 + np.sqrt(97 ** 2 / 4))  # row 1 shifted by -97
+        row = pen.query("salinity_product == 'part' and group == 'all'").iloc[0]
+        self.assertEqual(row.n, 3)
+        self.assertAlmostEqual(row.rmse_reference, 3.)
+        self.assertAlmostEqual(row.rmse_product, 5.)
+        self.assertAlmostEqual(row.added_error, 4.)
+        self.assertAlmostEqual(row.rms_prediction_shift, 2.)
+        self.assertAlmostEqual(row.rms_salinity_delta, 0.3)
+        self.assertEqual(pen.query("salinity_product == 'part' and group == '[0.25, 0.5)'").iloc[0].n, 3)
+
+    def test_salinity_penalty_zero_shift_when_equal(self):
+        base = pd.DataFrame({"dataset": "test", "row_id": [0, 1], "observed": [1., 2.],
+                             "predicted": [2., 4.], "salinity_delta": 0.0, "lat": [0., 1.],
+                             "bottomdepth": [100., 100.]})
+        pen = salinity_penalty(pd.concat([base.assign(salinity_product="salinity"),
+                                          base.assign(salinity_product="x")]))
+        row = pen.query("dataset == 'test' and group == 'all'").iloc[0]
+        self.assertEqual(row.rms_prediction_shift, 0)
+        self.assertEqual(row.added_error, 0)
 
     def test_fingerprint_and_validation_coverage(self):
         from highres_ta.training import data_fingerprint

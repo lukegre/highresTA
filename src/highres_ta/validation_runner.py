@@ -10,7 +10,7 @@ from loguru import logger
 from .dataio import load_data
 from .quantile_ensemble import QuantileRegressionEnsemble
 from .training import data_fingerprint, prepare_data, resolve_path
-from .validation import evaluate_model, swap_salinity
+from .validation import evaluate_model, salinity_penalty, swap_salinity
 from .validation_report import write_validation_reports
 
 
@@ -62,7 +62,8 @@ def run_validation(
     split_files = list((run_dir / "splits").glob("split_*.parquet"))
     products = list(dict.fromkeys(["salinity", *settings.get("salinity_products", ["salinity", "salt_soda", "sss_multiobs", "sss_cci"])]))
     variants = {"salinity": data}
-    if any(product != "salinity" for product in products):
+    stack = settings.get("salinity_stack")
+    if stack or any(product != "salinity" for product in products):
         raw = load_data(str(resolve_path(training_config["paths"]["training_data"])))
         cfg = training_config["data"]
         for product in products:
@@ -71,11 +72,17 @@ def run_validation(
                     data, raw, product, cfg["coordinate_columns"],
                     cfg["minimum_salinity"], cfg["maximum_salinity"],
                 )
+        if stack:
+            variants["stacked"] = swap_salinity(
+                data, raw, list(stack), cfg["coordinate_columns"],
+                cfg["minimum_salinity"], cfg["maximum_salinity"],
+            )
     logger.info("Validating {} members across {} salinity products", len(model.estimators), len(variants))
     predictions, scores = evaluate_model(
         model, data, training_config, split_files, variants,
         aggregation=aggregation, depth_threshold=coastal_depth,
     )
+    penalty = salinity_penalty(predictions, coastal_depth) if len(variants) > 1 else None
     metadata = {
         "created_utc": datetime.now(timezone.utc).isoformat(),
         "model_path": str(model_path.resolve()),
@@ -91,16 +98,22 @@ def run_validation(
         "saved_aggregation": model.aggregation,
         "coastal_depth": coastal_depth,
         "salinity_products": list(variants),
+        "salinity_stack": list(stack) if stack else None,
         "residual_definition": "predicted minus observed (µmol kg⁻¹)",
         "test_method": "Common held-out test rows, all ensemble members.",
         "validation_method": "Out-of-fold validation uses only members trained for the corresponding split.",
-        "alternate_salinity_method": "Original rows retained; replacement outside training salinity bounds or missing is excluded per product. Product sample counts can differ; comparisons are not paired.",
+        "alternate_salinity_method": "Original rows retained; replacement outside training salinity bounds or missing is excluded per product. Product sample counts can differ, so scores.csv is not paired; salinity_penalty.csv compares each product with in situ salinity on identical rows.",
         "split_files": [str(path.resolve()) for path in sorted(split_files)],
         "validation_settings": settings,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     predictions.to_parquet(output_dir / "predictions.parquet", index=False)
     scores.to_csv(output_dir / "scores.csv", index=False)
+    if penalty is not None:
+        penalty.to_csv(output_dir / "salinity_penalty.csv", index=False)
+        for _, row in penalty.query("dataset == 'test' and group == 'all'").iterrows():
+            logger.info("Salinity penalty {}: n={} dRMSE={:.2f} added_error={:.2f} rms_shift={:.2f} µmol/kg",
+                        row.salinity_product, row.n, row.delta_rmse, row.added_error, row.rms_prediction_shift)
     (output_dir / "metadata.json").write_text(json.dumps(metadata, indent=2) + "\n")
     result = write_validation_reports(predictions, scores, output_dir, metadata)
     logger.success("Validation reports saved to {}", output_dir)
