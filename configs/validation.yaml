@@ -4,3 +4,8 @@ validation:
   max_cpus: 42
   coastal_depth: 500
   salinity_products: [salinity, salt_soda, sss_multiobs, sss_cci]
+  # Salinity filled in the same order as inference.feature_sources.salinity (sss_cci > sss_soda > sss_multi_nrt);
+  # salt_soda / sss_multiobs are the collocated equivalents of the inference products.
+  salinity_stack: [sss_cci, salt_soda, sss_multiobs]
+  # Station bottle samples shallower than this (m) count as surface
+  station_max_depth: {default: 20, irminger: 30}

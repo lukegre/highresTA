@@ -18,6 +18,14 @@ from .quantiles import (
     quantile_crps,
     score_quantile_predictions,
 )
+from .stations import (
+    STATION_LOADERS,
+    average_casts,
+    collocate_stations,
+    plot_station,
+    predict_stations,
+    score_stations,
+)
 from .target_filtering import drop_bad_quality_talk, drop_extreme_salinities
 from .train_test_split import make_train_test_folds
 from .training import load_config, prepare_data, resolve_path
@@ -25,10 +33,13 @@ from .training import load_config, prepare_data, resolve_path
 __all__ = [
     "CatBoostResidualRegressor",
     "QuantileRegressionEnsemble",
+    "STATION_LOADERS",
     "add_cyclical_dayofyear",
     "add_spherical_coords",
     "add_talk_adjustment",
+    "average_casts",
     "calc_variance_decomposition",
+    "collocate_stations",
     "create_output_template",
     "decompose_variance",
     "drop_bad_quality_talk",
@@ -39,7 +50,9 @@ __all__ = [
     "open_gridded_data",
     "open_inference_data",
     "pinball_loss_by_quantile",
+    "plot_station",
     "predict",
+    "predict_stations",
     "prepare_data",
     "quantile_calibration",
     "quantile_column",
@@ -47,5 +60,6 @@ __all__ = [
     "quantile_crps",
     "resolve_path",
     "score_quantile_predictions",
+    "score_stations",
     "select_inference_date",
 ]

@@ -57,7 +57,9 @@ Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.j
 
 **Inference inputs** (`src/highres_ta/inference.py`): gridded predictors come from the public OceanSODA-ETHZv2 GeoZarr pyramid on `data.up.ethz.ch` (level `0` = 0.25°; opened over HTTP), bathymetry from a local netCDF (both in `paths.yaml`). `open_inference_data` builds training-named features from `inference.feature_sources` (fillna chain in listed order), and this is where product/unit mismatches live: SST is converted K→°C from the `units` attr, elevation (`positive: up`) → positive depth, `chl_cci_gapfilled` stands in for `chl_globcolour`, `mld_soda` for `mld_dens_soda`.
 
-Notebooks `01`–`05` are numbered analysis steps (EDA, training variants, validation, output checks). `scripts/get_timeseries_stations.py` fetches station time series (BATS, HOT, ESTOC, …) for evaluation.
+Notebooks `01`–`05` are numbered analysis steps (EDA, training variants, validation, output checks).
+
+**Station evaluation** (`highres_ta/stations.py`, CLI `scripts/evaluate_stations.py`): `STATION_LOADERS` download BATS, HOT, SPOTS, Irminger and ESTOC bottle data (URLs in `paths.station_sources`, depth cut-off in `validation.station_max_depth`). In-situ variables get an `_insitu` suffix so they don't clash with feature names. `collocate_stations` adds the nearest gridded features from `open_inference_data` under their training names. `predict_stations(..., salinity="gridded"|"insitu")` predicts with the gridded T/S (what inference sees) or swaps in the in-situ T/S (what training sees). Stages: `--stage collocate` writes `<station_dir>/<name>_collocated.parquet`; `--stage evaluate` writes `predictions.parquet`, `scores.csv` and `stations.pdf` to `<model run>/stations/`.
 
 ## Notes
 

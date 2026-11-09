@@ -9,3 +9,11 @@ paths:
   bathymetry: data/training/bathymetry_etopo2022_25km.nc
   # Public OceanSODA-ETHZv2 GeoZarr pyramid (level 0 = 0.25 deg, opened over HTTP)
   gridded_predictors: /net/sea/work/public/ftp/OceanSODA-ETHZv2/.OceanSODA_ETHZv2-gridded_data-8D_025deg-pyramid.zarr
+  # Surface time-series stations used for independent evaluation (raw downloads cached in station_dir/raw)
+  station_dir: data/time_series
+  station_sources:
+    bats: https://datadocs.bco-dmo.org/dataset/3782/file/wn3zAMZuP0Arwj/3782_v9_bats_bottle.csv
+    hot: https://datadocs.bco-dmo.org/dataset/3773/file/QArEXBMh6mlRyk/3773_v3_niskin_hot001_yr01_to_hot348_yr35.csv
+    spot: https://datadocs.bco-dmo.org/dataset/896862/file/m7XKy7gc6krX2K/spots.csv
+    irminger: https://datadocs.bco-dmo.org/dataset/911407/file/vmvAX9NU4gqY2V/911407_v1_ooi_irminger_sea_discrete_water_sampling_data.csv
+    estoc: https://doi.pangaea.de/10.1594/PANGAEA.959856?format=textfile
