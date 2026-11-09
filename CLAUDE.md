@@ -41,6 +41,8 @@ Methods web page: `cd web && python -m http.server 8000`; regenerate `web/data.j
 
 **Pipeline:** collocation (`colloc/`, `glodap/`, `notebooks/00_collocate.ipynb`) → training parquet in `data/training/*.pq` → `train_quantile_ensemble.py` → `QuantileRegressionEnsemble` joblib → `scripts/inference.py` over the gridded predictor zarr.
 
+**CARIMED (Mediterranean) data:** `scripts/medsea_data.py` downloads CARIMED 2QC bottles (≤30 dbar, TA flag 2, ≥1982, minus cruises already in GLODAP), matches them to `paths.gridded_predictors` under the GLODAP matchup column names (`--stage collocate` → `paths.carimed_collocated`), and appends them to `paths.glodap_training_data` (`--stage combine` → `paths.training_data`, with a `source` column).
+
 **Where code lives:** scripts are thin typer CLIs. Training logic (data prep, Optuna objective, member training, ensemble assembly, `load_config`/`prepare_data`/`resolve_path`) is in `highres_ta/training.py`; the outer block/split/tuning-fold logic is in `highres_ta/train_test_split.py`. Notebooks and `web/build_data.py` use these via `import highres_ta as ta`.
 
 **Model (`estimators.CatBoostResidualRegressor`):** a polynomial linear baseline on `linear_features` (salinity — TA is dominated by salinity) plus a CatBoost model fitted to the residuals. CatBoost kwargs are passed through `**catboost_kwargs` and exposed via custom `get_params`/`set_params` so it works with sklearn cloning/search; `loss_function` (e.g. `MultiQuantile:alpha=...`) determines `quantiles_`. Use `predict_quantiles` for the (n, n_quantiles) output.

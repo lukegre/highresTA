@@ -2,8 +2,12 @@
 paths:
   # model output
   output_dir: models/highresTA-rashomon-20261106/
-  # training data
-  training_data: data/training/GLODAPv2023-raw_collocated.pq
+  # training data: GLODAP + CARIMED, written by scripts/medsea_data.py from the two files below
+  training_data: data/training/GLODAPv2023+CARIMED_collocated.pq
+  glodap_training_data: data/training/GLODAPv2023-raw_collocated.pq
+  carimed_collocated: data/training/CARIMED_collocated.pq
+  carimed_source: https://www.ncei.noaa.gov/data/oceans/ncei/ocads/data/0309255/CARIMED_2QC_V1_CF.nc
+  raw_dir: data/raw
   talk_adjustment_csv: data/glodapv2_adjustments_last_updated_on_2026_07_09.csv
   # Elevation netCDF (positive up); converted to positive depth
   bathymetry: data/training/bathymetry_etopo2022_25km.nc
