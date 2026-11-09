@@ -1,7 +1,7 @@
 # Data and output locations. Relative paths resolve against the repo root; URLs are used as-is.
 paths:
   # model output
-  output_dir: models/highresTA-rashomon-20261106/
+  output_dir: models/highresTA-rashomon-20261109/
   # training data: GLODAP + CARIMED, written by scripts/medsea_data.py from the two files below
   training_data: data/training/GLODAPv2023+CARIMED_collocated.pq
   glodap_training_data: data/training/GLODAPv2023-raw_collocated.pq
