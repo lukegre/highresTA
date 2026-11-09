@@ -78,6 +78,16 @@ def evaluate_all(config: dict, stations: list[str], model_path: Path, output_dir
 @app.command(help=__doc__)
 def main(
     config_path: Annotated[Path, typer.Option("--config", exists=True)] = CONFIG_DIR,
+    overrides: Annotated[
+        list[Path],
+        typer.Option(
+            "--override",
+            help="YAML file deep-merged over the configuration; repeatable, applied in order.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = [],
     stage: Annotated[Stage, typer.Option(help="collocate, evaluate or both.")] = Stage.all,
     stations: Annotated[list[str] | None, typer.Option("--stations", help="Repeatable; default all configured.")] = None,
     model_path: Annotated[Path | None, typer.Option(help="Defaults to <paths.output_dir>/models/quantile_ensemble.joblib.")] = None,
@@ -85,7 +95,7 @@ def main(
     salinity: Annotated[Salinity, typer.Option(help="Salinity/temperature source for prediction.")] = Salinity.both,
     max_cpus: Annotated[int | None, typer.Option(min=1)] = None,
 ) -> None:
-    config = ta.load_config(config_path)
+    config = ta.load_config(config_path, overrides)
     stations = stations or list(config["paths"]["station_sources"])
     unknown = set(stations) - set(ta.STATION_LOADERS)
     if unknown:
