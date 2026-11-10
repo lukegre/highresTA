@@ -23,7 +23,7 @@ async function renderSite() {
   const links = element('div', undefined, 'site-links');
   for (const item of project.links) {
     const node = link(item);
-    if (item.href === page) node.setAttribute('aria-current', 'page');
+    if (item.href.split('?')[0] === page) node.setAttribute('aria-current', 'page');
     links.append(node);
   }
   nav.append(links);

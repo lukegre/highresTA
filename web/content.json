@@ -17,7 +17,7 @@
       },
       {
         "label": "Explore data",
-        "href": "explore.html"
+        "href": "explore.html?store=https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/&var=talk_std,talk_median&hidden=talk_median&variance_type=3&time=2019-10-04&cmap.talk_std=viridis&log.talk_std=1&vmin.talk_std=5&vmax.talk_std=50&cmap.talk_median=RdYlBu&rev.talk_median=1&vmin.talk_median=2146&vmax.talk_median=2436&basemap=land&lon=-155&x=-155.000&y=0.00000&z=3.08&slider.variance_type=v&slider.time=h"
       }
     ],
     "repository": {
@@ -93,7 +93,7 @@
       },
       {
         "label": "Explore the data →",
-        "href": "explore.html",
+        "href": "explore.html?store=https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/&var=talk_std,talk_median&hidden=talk_median&variance_type=3&time=2019-10-04&cmap.talk_std=viridis&log.talk_std=1&vmin.talk_std=5&vmax.talk_std=50&cmap.talk_median=RdYlBu&rev.talk_median=1&vmin.talk_median=2146&vmax.talk_median=2436&basemap=land&lon=-155&x=-155.000&y=0.00000&z=3.08&slider.variance_type=v&slider.time=h",
         "description": "Open a public GeoZarr pyramid to inspect gridded fields by location, variable and date."
       }
     ]
