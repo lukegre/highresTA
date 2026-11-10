@@ -5,3 +5,7 @@ paths:
   output_dir: models/highresTA-stacked-salinity-20261109/
 data:
   salinity_source: [sss_cci, salt_soda, sss_multiobs]
+# null = derive from paths.output_dir above, so inference uses this variant's model and run dir
+inference:
+  model_path: null
+  output_zarr: null

@@ -1,23 +1,23 @@
 inference:
-  model_path: models/highresTA-271106/models/quantile_ensemble.joblib
-  output_zarr: models/highresTA-271106/inference/highresTA_8D_025deg.zarr
+  model_path: models/highresTA-rashomon-20261106/models/quantile_ensemble.joblib
+  output_zarr: models/highresTA-rashomon-20261106/inference/highresTA_8D_025deg.zarr
   start_date: "1982-01-01"
   end_date: "2025-12-31"
-  n_workers: 3        # dates processed concurrently
-  max_cpus: 42        # CPUs shared by the models of one date
-  aggregation: null   # null = use the aggregation saved with the ensemble (mean | median)
-  chunks: {time: 1, lat: 720, lon: 1440, variance_type: 4}
+  n_workers: 3 # dates processed concurrently
+  max_cpus: 42 # CPUs shared by the models of one date
+  aggregation: null # null = use the aggregation saved with the ensemble (mean | median)
+  chunks: { time: 1, lat: 720, lon: 1440, variance_type: 4 }
 
   # Training feature -> variables in the gridded predictor store, combined with fillna in this
   # order. Kelvin fields are converted to degC automatically. bottomdepth and ncoord_* are
   # computed in code. chl_globcolour and mld_dens_soda are stand-ins: the model was trained on
   # GlobColour chl and SODA density MLD, but the store holds the nearest available products.
   feature_sources:
-    salinity: [sss_cci, sss_soda, sss_multi_nrt]
-    temperature: [sst_cci, sst_c3s_icdr]
-    ssh_adt: [adt_duacs]
-    chl_globcolour: [chl_cci_gapfilled]
-    mld_dens_soda: [mld_soda]
-    silicate: [silicate_woa]
-    nitrate: [nitrate_woa]
-    phosphate: [phosphate_woa]
+    salinity: [ sss_cci, sss_soda, sss_multi_nrt ]
+    temperature: [ sst_cci, sst_c3s_icdr ]
+    ssh_adt: [ adt_duacs ]
+    chl_globcolour: [ chl_cci_gapfilled ]
+    mld_dens_soda: [ mld_soda ]
+    silicate: [ silicate_woa ]
+    nitrate: [ nitrate_woa ]
+    phosphate: [ phosphate_woa ]

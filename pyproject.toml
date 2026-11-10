@@ -12,6 +12,7 @@ dependencies = [
     "dask>=2026.3.0",
     "dill>=0.4.1",
     "fsspec>=2026.3.0",
+    "geozarr-pyramid-maker",
     "h5netcdf>=1.8.1",
     "jinja2>=3.1.6",
     "loguru>=0.7.3",
@@ -31,7 +32,7 @@ dependencies = [
     "tabulate>=0.10.0",
     "typer>=0.27.2",
     "xarray>=2026.1.0",
-    "zarr>=3.1.6",
+    "zarr>=3.4",
 ]
 
 [dependency-groups]
@@ -45,3 +46,6 @@ dev = [
 [build-system]
 requires = ["uv_build>=0.10.0,<0.11.0"]
 build-backend = "uv_build"
+
+[tool.uv.sources]
+geozarr-pyramid-maker = { git = "https://github.com/lukegre/geozarr-pyramid-maker.git" }

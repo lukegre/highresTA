@@ -1,0 +1,32 @@
+# Stacked gridded salinity (anchor for the linear baseline, as in stacked_salinity.yaml) plus
+# sss_cci and salt_soda as their own, often missing, CatBoost features. Rows, split blocks and the
+# test block are identical to the in situ and stacked_salinity models.
+#   scripts/train_splits.sh --override configs/variants/multiproduct_salinity.yaml
+# See docs/plan_multiproduct_salinity.md.
+paths:
+  output_dir: models/highresTA-multiproduct-salinity-20261110/
+data:
+  salinity_source: [sss_cci, salt_soda, sss_multiobs]
+  feature_names:  # lists replace on merge, so this is the full list
+  - salinity
+  - temperature
+  - ssh_adt
+  - chl_globcolour
+  - nitrate
+  - phosphate
+  - silicate
+  - bottomdepth
+  - ncoord_x
+  - ncoord_y
+  - ncoord_z
+  - sss_cci
+  - salt_soda
+  # sss_multiobs stays in the anchor stack only: the store's sss_multi_nrt starts ~2020-2021,
+  # while sss_multiobs is filled in 90 % of training rows (train/inference mismatch as a feature).
+# null = derive from paths.output_dir above, so inference uses this variant's model and run dir
+inference:
+  model_path: null
+  output_zarr: null
+  feature_sources:  # dicts merge on override; training column -> gridded store variable
+    sss_cci: [sss_cci]
+    salt_soda: [sss_soda]
