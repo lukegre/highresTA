@@ -162,7 +162,7 @@
       {
         "label": "Cruises",
         "value": "{{run.n_cruises|int}}",
-        "note": "displayed results, GLODAPv2.2023"
+        "note": "displayed results, GLODAPv2.2023 and CARIMED"
       },
       {
         "label": "Ensemble members",
@@ -190,7 +190,7 @@
             {
               "tag": "Target",
               "title": "Total alkalinity (TA)",
-              "body": "In µmol/kg, from the **GLODAPv2.2023** bottle compilation. The linear salinity baseline and boosted residual are fitted to the quality-controlled bottle target."
+              "body": "In µmol/kg, from **GLODAPv2.2023 and CARIMED** bottle observations. The linear salinity baseline and boosted residual are fitted to the quality-controlled bottle target."
             },
             {
               "tag": "Predictors",
@@ -215,8 +215,8 @@
           "rows": [
             [
               "`salinity`",
-              "Bottle measurement",
-              "The dominant control on TA; also used as the linear baseline."
+              "Gridded salinity stack",
+              "CCI, then SODA, then multi-observation salinity, falling back to bottle salinity; also used as the linear baseline."
             ],
             [
               "`temperature`",
@@ -254,7 +254,7 @@
           "type": "callout",
           "tone": "info",
           "title": "Collocation",
-          "body": "Bottle time and position are matched to gridded predictors in the collocation pipeline. Day-of-year sine/cosine is computed during preprocessing but is not selected among the current 11 candidate features. Missing optional predictors are retained; CatBoost handles numeric missing values."
+          "body": "Bottle time and position are matched to gridded predictors in the collocation pipeline. After filtering, salinity is replaced by the first available valid value from CCI, SODA and multi-observation products, with bottle salinity as fallback. Day-of-year sine/cosine is computed during preprocessing but is not selected among the current 11 candidate features. Missing optional predictors are retained; CatBoost handles numeric missing values."
         }
       ]
     },
@@ -273,7 +273,7 @@
           "items": [
             {
               "title": "Salinity window",
-              "body": "Keep samples with salinity between **20 and 40**. This drops estuarine and freshwater-influenced water, where the TA–salinity relationship differs."
+              "body": "Keep samples with bottle salinity between **20 and 40**. After filtering, use the first valid gridded salinity in the CCI → SODA → multi-observation stack, falling back to bottle salinity."
             },
             {
               "title": "Quality control",

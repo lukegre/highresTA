@@ -33,7 +33,8 @@ Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key
 The method page describes the split-wise Rashomon design: one Optuna
 study per split, feature omissions, and seven diverse near-optimal trials
 refitted per split. `data.json` currently contains the completed
-`highresTA-rashomon-20261106` run (1982–2021). The method page identifies the
+`highresTA-stacked-salinity-20261109` run (1982–2021), using GLODAP and CARIMED
+observations and a gridded salinity stack. The method page identifies the
 source run and computes its worked bottle estimates from saved held-out
 predictions. The salinity baseline is reproduced by fitting degree-one OLS on each split’s training observations and weighting those fits by member count.
 

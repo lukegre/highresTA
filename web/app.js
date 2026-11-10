@@ -10,7 +10,7 @@ const app = {
   async init() {
     try {
       const [dataResp, contentResp] = await Promise.all([
-        fetch('data.json'),
+        fetch('data.json', { cache: 'no-store' }),
         fetch('content.json', { cache: 'no-store' })
       ]);
 
@@ -499,7 +499,10 @@ const app = {
 
     // Summary stats
     const rmseSorted = [...rmsValues].sort((a, b) => a - b);
-    const medianRmse = rmseSorted[Math.floor(rmseSorted.length / 2)];
+    const midpoint = Math.floor(rmseSorted.length / 2);
+    const medianRmse = rmseSorted.length % 2
+      ? rmseSorted[midpoint]
+      : (rmseSorted[midpoint - 1] + rmseSorted[midpoint]) / 2;
     const stats = document.createElement('div');
     stats.className = 'member-summary-stats';
     stats.innerHTML = `
