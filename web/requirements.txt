@@ -1,0 +1,1 @@
+# The site is static and served by viewer/serve.py (stdlib only); this file only marks the RenkuLab build as Python.

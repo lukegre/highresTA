@@ -1,19 +1,19 @@
 :root, :root[data-theme="light"] {
   --gv-font: var(--site-body);
-  --gv-card: #fffefa;
+  --gv-card: var(--site-surface);
   --gv-card-line: var(--site-line);
-  --gv-sidebar: #eef1eb;
+  --gv-sidebar: var(--site-surface-alt);
   --gv-text: var(--site-ink);
   --gv-muted: var(--site-muted);
   --gv-accent: var(--site-teal);
   --gv-radius: 3px;
   --gv-shadow: none;
   --gv-map-bg: var(--site-paper);
-  --gv-land: #f1efe5;
+  --gv-land: var(--site-tint);
   --gv-water: var(--site-paper);
-  --gv-rail: #b8cbc2;
-  --gv-hover: #e1ebe4;
-  color-scheme: light;
+  --gv-rail: var(--site-line);
+  --gv-hover: var(--site-hover);
+  color-scheme: light dark;
 }
 html, body { height: auto; }
 body { margin: 0; overflow: auto; background: var(--site-paper); color: var(--site-ink); font: 16px/1.5 var(--site-body); }

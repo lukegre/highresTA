@@ -4,7 +4,7 @@ title = "HighresTA data explorer"
 store = "https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/"
 endpoint = ""
 relay = "proxy/"
-theme = "light"
+theme = "auto"
 
 [layout]
 sidebar = "left"

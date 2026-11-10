@@ -4,6 +4,10 @@
   --site-muted: #486560;
   --site-line: #c6d3cc;
   --site-teal: #12635f;
+  --site-surface: #fffefa;
+  --site-surface-alt: #eef1eb;
+  --site-tint: #eaf0eb;
+  --site-hover: #edf2eb;
   --site-display: Georgia, "Times New Roman", serif;
   --site-body: Inter, system-ui, sans-serif;
   --site-width: 1220px;
@@ -54,3 +58,18 @@ nav.site-nav {
 }
 .section-nav a { color: inherit; white-space: nowrap; text-decoration: none; }
 .section-nav a:hover, .section-nav a:focus-visible { text-decoration: underline; text-underline-offset: 4px; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --site-paper: #111c1b;
+    --site-surface: #1a2927;
+    --site-surface-alt: #223431;
+    --site-tint: #20312e;
+    --site-hover: #2a403b;
+    --site-ink: #e5efea;
+    --site-muted: #aec5ba;
+    --site-line: #3a524b;
+    --site-teal: #83d4c2;
+    color-scheme: dark;
+  }
+}

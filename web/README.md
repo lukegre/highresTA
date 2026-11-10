@@ -17,6 +17,16 @@ Set the public dataset URL in [the viewer TOML](viewer/explorer.toml) and [rebui
 | `uncertainty.css`, `uncertainty.js` | Interactive uncertainty explorer and charts | Rarely |
 | `method.html`, `method.css`, `method.js` | Production method and interactive held-out bottle example | Yes |
 
+## Hosting on RenkuLab
+
+`web/` is a self-contained RenkuLab app: `Procfile` starts `viewer/serve.py` on `$RENKU_SESSION_PORT`, and `requirements.txt` (empty, stdlib only) marks the build as Python. Create an **app** launcher that builds from this repository with `context_dir: "web"`, `builder_variant: "python"`, `frontend_variant: "none"`, so the heavy model dependencies in the root `pyproject.toml` are not installed. The project and the git repository must both be public.
+
+The data store sends no CORS headers, so the explorer reads it through the server's `proxy/` relay. The Procfile limits the relay to `data.up.ethz.ch` (`--relay-host`); add another `--relay-host` if the store moves. All links in the site are relative, so it also works under a path prefix.
+
+Test the app command locally:
+
+    cd web && RENKU_SESSION_PORT=8000 sh -c "$(sed 's/^web: //' Procfile)"
+
 ## Editing content
 
 Edit `project.links` for the shared primary navigation and `overview.sectionNav` for landing-page anchors. `overview.maps` pairs each source image and optional full-resolution link with its caption, legend, and alt text. Edit `comparison.lineage` to change each run’s parent and description of what changed. Page copy updates on reload. Measured scores and saved predictions are kept in their source data, and upstream viewer configuration lives in TOML.

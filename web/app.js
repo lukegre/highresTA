@@ -81,7 +81,7 @@ const app = {
     `;
     hero.innerHTML = heroHTML;
     const resultsNotice = document.createElement('div');
-    resultsNotice.className = 'callout callout--info';
+    resultsNotice.className = 'callout callout--info results-notice';
     resultsNotice.setAttribute('role', 'note');
     const currentResults = this.data.run.method === 'rashomon';
     const noticeTitle = document.createElement('strong');

@@ -208,6 +208,11 @@ main {
   margin-top: 40px;
 }
 
+/* Run notice appended below the hero stat cards */
+.results-notice {
+  margin-top: 40px;
+}
+
 .stat-card {
   background: var(--surface);
   border: 1px solid var(--border);

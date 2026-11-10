@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Serve an assembled viewer for local use: static files with Range support plus a CORS relay.
 
-    serve.py DIR [--port 8780] [--bind 127.0.0.1]
+    serve.py DIR [--port 8780] [--bind 127.0.0.1] [--relay-host HOST ...]
 
 GET /<file>                  static file from DIR (Range supported; `/` is index.html)
 GET /proxy/<https-url>       forwards the GET with its Range header to the https URL and returns the upstream status
@@ -10,7 +10,8 @@ GET /proxy/<https-url>       forwards the GET with its Range header to the https
 
 Only GET (and the CORS OPTIONS preflight) is answered; the viewer never sends HEAD (D-56). Stdlib only.
 The relay is for local use: it refuses non-https URLs and hosts that resolve to private/loopback addresses
-(use --allow-private-hosts to read a store on your own network).
+(use --allow-private-hosts to read a store on your own network). On a public deployment pass --relay-host (repeatable)
+so that only those hosts are relayed and the server is not an open proxy.
 """
 import argparse
 import ipaddress
@@ -92,6 +93,7 @@ class Handler(BaseHTTPRequestHandler):
     directory = "."
     allowed_schemes = ("https",)
     block_private = True
+    relay_hosts = ()  # empty: any public https host
     protocol_version = "HTTP/1.1"
     server_version = "geozarr-viewer-serve"
 
@@ -181,6 +183,8 @@ class Handler(BaseHTTPRequestHandler):
         except ValueError as e:
             return self.reply(400, f"{e}\n")
         host = urlsplit(url).hostname
+        if self.relay_hosts and host not in self.relay_hosts:
+            return self.reply(403, f"refusing to relay to {host} (not an allowed relay host)\n")
         if self.block_private and is_private_host(host):
             return self.reply(403, f"refusing to relay to {host} (private or unresolvable address)\n")
         headers = {"User-Agent": "geozarr-viewer-serve", "Accept-Encoding": "identity"}  # identity: lengths stay exact
@@ -220,13 +224,14 @@ def main(argv=None):
     ap.add_argument("directory", help="directory to serve (e.g. the one holding the assembled page)")
     ap.add_argument("--port", type=int, default=8780)
     ap.add_argument("--bind", default="127.0.0.1", help="address to listen on (default: local only)")
+    ap.add_argument("--relay-host", action="append", default=[], help="only relay to this host (repeatable)")
     ap.add_argument("--allow-private-hosts", action="store_true", help="let /proxy/ reach private/loopback addresses")
     args = ap.parse_args(argv)
     d = Path(args.directory)
     if not d.is_dir():
         print(f"error: not a directory: {d}", file=sys.stderr)
         return 2
-    handler = type("ViewerHandler", (Handler,), {"directory": str(d), "block_private": not args.allow_private_hosts})
+    handler = type("ViewerHandler", (Handler,), {"directory": str(d), "block_private": not args.allow_private_hosts, "relay_hosts": tuple(args.relay_host)})
     srv = ThreadingHTTPServer((args.bind, args.port), handler)
     print(f"serving {d.resolve()} on http://{args.bind}:{args.port}/  (relay: /proxy/<https-url>)", file=sys.stderr)
     try:

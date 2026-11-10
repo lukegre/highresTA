@@ -16,7 +16,7 @@ a { color: var(--site-teal); text-underline-offset: 4px; }
 figure { margin: 0; }
 .atlas { width: 100%; height: auto; aspect-ratio: 1.88; object-fit: fill; border: 1px solid var(--site-line); display: block; }
 .map-meta { margin: 11px 0; display: flex; align-items: center; gap: 8px; color: var(--site-muted); font-size: 13px; }
-.point { height: 7px; width: 7px; border-radius: 50%; background: #135b67; }
+.point { height: 7px; width: 7px; border-radius: 50%; background: var(--site-teal); }
 .gradient { width: 45px; height: 7px; background: linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725); }
 figcaption p:last-child, article p { margin: 0; color: var(--site-muted); }
 .routes { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); grid-template-columns: repeat(3, 1fr); }
