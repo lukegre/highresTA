@@ -15,6 +15,7 @@ import highres_ta as ta
 from highres_ta.training import CONFIG_DIR
 
 N_ATTEMPTS = 3  # per date, for transient HTTP errors from the remote predictor store
+DEFAULT_ZARR_NAME = "highresTA_8D_025deg.zarr"
 
 typer_app = typer.Typer()
 
@@ -28,18 +29,36 @@ def main(
             exists=True,
         ),
     ] = CONFIG_DIR,
-    model_path: Annotated[str | None, typer.Option(help="Override inference.model_path.")] = None,
-    zarr_fname_out: Annotated[str | None, typer.Option("--zarr-out", help="Override inference.output_zarr.")] = None,
+    overrides: Annotated[
+        list[Path],
+        typer.Option(
+            "--override",
+            help="YAML file deep-merged over the configuration; repeatable, applied in order.",
+            exists=True,
+            dir_okay=False,
+            readable=True,
+        ),
+    ] = [],
+    model_path: Annotated[
+        str | None,
+        typer.Option(help="Override inference.model_path (null in config = <paths.output_dir>/models/quantile_ensemble.joblib)."),
+    ] = None,
+    zarr_fname_out: Annotated[
+        str | None,
+        typer.Option("--zarr-out", help=f"Override inference.output_zarr (null in config = <paths.output_dir>/inference/{DEFAULT_ZARR_NAME})."),
+    ] = None,
     n_workers: Annotated[int | None, typer.Option(help="Override inference.n_workers.")] = None,
     start_date: Annotated[str | None, typer.Option(help="Override inference.start_date.")] = None,
     end_date: Annotated[str | None, typer.Option(help="Override inference.end_date.")] = None,
     max_cpus: Annotated[int | None, typer.Option(help="Override inference.max_cpus.")] = None,
     aggregation: Annotated[str | None, typer.Option(help="Override inference.aggregation (mean|median).")] = None,
 ) -> None:
-    config = ta.load_config(config_path)
+    config = ta.load_config(config_path, overrides)
     cfg = config["inference"]
-    model_path = model_path or cfg["model_path"]
-    zarr_fname_out = zarr_fname_out or cfg["output_zarr"]
+    run_dir = Path(config["paths"]["output_dir"])
+    model_path = model_path or cfg.get("model_path") or str(run_dir / "models" / "quantile_ensemble.joblib")
+    zarr_fname_out = zarr_fname_out or cfg.get("output_zarr") or str(run_dir / "inference" / DEFAULT_ZARR_NAME)
+    logger.info(f"model: {model_path} -> output: {zarr_fname_out}")
     n_workers = n_workers or cfg["n_workers"]
     start_date = start_date or cfg["start_date"]
     end_date = end_date or cfg["end_date"]
