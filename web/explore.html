@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HighresTA</title>
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.10.0/ol.css">
+  <link rel="stylesheet" href="viewer/explorer.css?v=integrated">
+  <link rel="stylesheet" href="explore.css?v=legends">
+</head>
+<body>
+  <nav class="site-nav"></nav>
+  <main class="explore-page">
+    <p class="explore-notice" id="viewer-error" role="status" hidden></p>
+    <div class="gv-app" id="gv-app" data-sidebar="left" style="--gv-sb-width:320px">
+<header class="gv-slot gv-topbar" data-slot="topbar"></header>
+<aside class="gv-sidebar"><div class="gv-slot" data-slot="sidebar"><div class="gv-info-panel" data-gv-component="info-panel"></div><div class="gv-variable-cards" data-gv-component="variable-cards"></div><div class="gv-style-controls" data-gv-component="style-controls"></div><div class="gv-legend" data-gv-component="legend"></div></div><div class="gv-slot" data-slot="sidebar-bottom"><section class="gv-group" data-gv-group="Global settings"><div class="gv-group-body" id="gv-group-1"><div class="gv-label-mode" data-gv-component="label-mode"></div><div class="gv-dim-roles" data-gv-component="dim-roles"></div><div class="gv-center-lon" data-gv-component="center-lon"></div><div class="gv-basemap" data-gv-component="basemap"></div><div class="gv-cmap-sources" data-gv-component="cmap-sources"></div></div></section></div></aside>
+<div class="gv-main">
+<div class="gv-mapwrap"><div id="gv-map"></div><div class="gv-slot" data-slot="overlay-tl"><div class="gv-var-attrs" data-gv-component="var-attrs"></div><div class="gv-readout" data-gv-component="readout"></div></div><div class="gv-slot" data-slot="overlay-tr"></div><div class="gv-slot" data-slot="overlay-bl"><div class="gv-dim-sliders" data-gv-component="dim-sliders"></div></div><div class="gv-slot" data-slot="overlay-br"></div></div>
+<div class="gv-slot" data-slot="bottom"><div class="gv-timeline" data-gv-component="timeline"></div></div>
+</div>
+</div>
+<script id="spec" type="application/json">{
+ "title": "HighresTA data explorer",
+ "store": "https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/",
+ "endpoint": "",
+ "relay": "proxy/",
+ "theme": "light",
+ "layout": {
+  "sidebar": "left",
+  "sidebar_width": 320,
+  "sidebar_collapsible": true,
+  "sidebar_resizable": true
+ },
+ "groups": {
+  "Global settings": {
+   "collapsed": false,
+   "icon": "gear"
+  }
+ },
+ "components": [
+  {
+   "name": "info-panel",
+   "slot": "sidebar",
+   "options": {
+    "open": false
+   },
+   "group": null
+  },
+  {
+   "name": "variable-cards",
+   "slot": "sidebar",
+   "options": {
+    "sections": true,
+    "drag": true,
+    "show_other": true
+   },
+   "group": null
+  },
+  {
+   "name": "label-mode",
+   "slot": "sidebar-bottom",
+   "options": {},
+   "group": "Global settings"
+  },
+  {
+   "name": "dim-roles",
+   "slot": "sidebar-bottom",
+   "options": {
+    "title": true
+   },
+   "group": "Global settings"
+  },
+  {
+   "name": "center-lon",
+   "slot": "sidebar-bottom",
+   "options": {},
+   "group": "Global settings"
+  },
+  {
+   "name": "basemap",
+   "slot": "sidebar-bottom",
+   "options": {
+    "default": "land",
+    "label": true
+   },
+   "group": "Global settings"
+  },
+  {
+   "name": "cmap-sources",
+   "slot": "sidebar-bottom",
+   "options": {},
+   "group": "Global settings"
+  },
+  {
+   "name": "style-controls",
+   "slot": "sidebar",
+   "options": {
+    "placement": "card",
+    "log": true,
+    "range_buttons": true,
+    "opacity": true
+   },
+   "group": null
+  },
+  {
+   "name": "legend",
+   "slot": "sidebar",
+   "options": {
+    "placement": "card",
+    "orientation": "horizontal",
+    "units": true
+   },
+   "group": null
+  },
+  {
+   "name": "var-attrs",
+   "slot": "overlay-tl",
+   "options": {},
+   "group": null
+  },
+  {
+   "name": "timeline",
+   "slot": "bottom",
+   "options": {
+    "play": true,
+    "fps": 1.25,
+    "keys": true
+   },
+   "group": null
+  },
+  {
+   "name": "dim-sliders",
+   "slot": "overlay-bl",
+   "options": {
+    "orientation": "vertical",
+    "keys": true
+   },
+   "group": null
+  },
+  {
+   "name": "readout",
+   "slot": "overlay-tl",
+   "options": {
+    "latlon": true
+   },
+   "group": null
+  }
+ ]
+}</script>
+  </main>
+  <script src="site.js" defer></script>
+  <script type="module" src="viewer/explorer.js?v=center205"></script>
+  <script>
+    setTimeout(() => {
+      document.getElementById('viewer-error').hidden = !!document.querySelector('.ol-viewport');
+    }, 30000);
+  </script>
+</body>
+</html>

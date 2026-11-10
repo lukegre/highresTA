@@ -261,6 +261,8 @@ function computeBatchStats(testSample, memberIndices) {
 window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   const { data, content, tpl, md, rdylbu } = ctx;
   const { explorer } = content;
+  const ui = content.ui;
+  const labels = explorer.labels;
   const { members, test_sample, variance_means } = data;
   const nSplits = data.run.n_splits;
   const nPerSplit = data.run.n_replicates;
@@ -435,7 +437,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     });
 
     const label = host.querySelector('.ux-selection-label');
-    if (label) label.textContent = `Members selected: ${selectedMembers.size}`;
+    if (label) label.textContent = ui.member_count.replace('{count}', selectedMembers.size);
   }
 
   // === Scatter plot ===
@@ -548,7 +550,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       xLabel.setAttribute('text-anchor', 'middle');
       xLabel.setAttribute('font-size', '11');
       xLabel.setAttribute('fill', getCSSVar('--text-muted'));
-      xLabel.textContent = 'Observed TA (µmol/kg)';
+      xLabel.textContent = ui.scatter_x;
       svg.appendChild(xLabel);
 
       const yLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
@@ -558,7 +560,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       yLabel.setAttribute('font-size', '11');
       yLabel.setAttribute('fill', getCSSVar('--text-muted'));
       yLabel.setAttribute('transform', `rotate(-90 12 ${margin.top + plotH / 2})`);
-      yLabel.textContent = 'Predicted (µmol/kg)';
+      yLabel.textContent = ui.scatter_y;
       svg.appendChild(yLabel);
 
       // Points
@@ -589,7 +591,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
 
         const label = document.createElement('div');
         label.className = 'ux-colorbar-label';
-        label.textContent = 'Member spread (µmol/kg)';
+        label.textContent = ui.spread_color;
         cbContainer.appendChild(label);
 
         const ramp = document.createElement('div');
@@ -707,35 +709,35 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     if (infoContainer) {
       infoContainer.innerHTML = `
         <div class="ux-info-group">
-          <div class="ux-info-label">Cruise</div>
+          <div class="ux-info-label">${ui.cruise}</div>
           <div class="ux-info-value">${sample.cruise}</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Date</div>
+          <div class="ux-info-label">${ui.date}</div>
           <div class="ux-info-value">${sample.date}</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Position</div>
+          <div class="ux-info-label">${ui.position}</div>
           <div class="ux-info-value">${fmt(sample.lat, 2)}°, ${fmt(sample.lon, 2)}°</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Depth</div>
+          <div class="ux-info-label">${ui.depth}</div>
           <div class="ux-info-value">${fmt(sample.depth, 1)} m</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Observed</div>
+          <div class="ux-info-label">${ui.observed}</div>
           <div class="ux-info-value">${fmt(sample.observed, 2)} µmol/kg</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Ensemble median</div>
+          <div class="ux-info-label">${ui.ensemble_median}</div>
           <div class="ux-info-value">${fmt(stats.ensQ2, 2)} µmol/kg</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Error</div>
+          <div class="ux-info-label">${ui.error}</div>
           <div class="ux-info-value">${fmt(stats.error, 2)} µmol/kg</div>
         </div>
         <div class="ux-info-group">
-          <div class="ux-info-label">Member spread</div>
+          <div class="ux-info-label">${ui.member_spread}</div>
           <div class="ux-info-value">${fmt(stats.spread, 2)} µmol/kg</div>
         </div>
       `;
@@ -933,9 +935,9 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     const withinStd = Math.sqrt(withinVar);
 
     return `
-      Between-split std: ${splitGroups.size >= 2 ? fmt(splitStd, 2) + ' µmol/kg' : 'n/a'}
+      ${content.ui.between_split_spread} ${splitGroups.size >= 2 ? fmt(splitStd, 2) + ' µmol/kg' : 'n/a'}
       <br/>
-      Within-split std: ${withinVar > 0 ? fmt(withinStd, 2) + ' µmol/kg' : 'n/a'}
+      ${content.ui.within_split_spread} ${withinVar > 0 ? fmt(withinStd, 2) + ' µmol/kg' : 'n/a'}
     `;
   }
 
@@ -968,27 +970,27 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
 
     tooltipElem.innerHTML = `
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Cruise:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_cruise}</div>
         <div class="ux-tooltip-value">${sample.cruise}</div>
       </div>
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Date:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_date}</div>
         <div class="ux-tooltip-value">${sample.date}</div>
       </div>
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Position:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_position}</div>
         <div class="ux-tooltip-value">${fmt(sample.lat, 1)}°, ${fmt(sample.lon, 1)}°</div>
       </div>
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Observed:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_observed}</div>
         <div class="ux-tooltip-value">${fmt(sample.observed, 2)}</div>
       </div>
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Predicted:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_predicted}</div>
         <div class="ux-tooltip-value">${fmt(stats.ensQ2, 2)}</div>
       </div>
       <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">Spread:</div>
+        <div class="ux-tooltip-label">${ui.tooltip_spread}</div>
         <div class="ux-tooltip-value">${fmt(stats.spread, 2)}</div>
       </div>
     `;
@@ -1011,33 +1013,30 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     if (region) {
       const sample = test_sample[selectedSampleIdx];
       const stats = computeEnsembleStats(sample, Array.from(selectedMembers));
-      region.textContent = `Sample at ${sample.lat.toFixed(1)}, ${sample.lon.toFixed(1)}: observed ${sample.observed.toFixed(2)}, predicted ${stats.ensQ2.toFixed(2)}, spread ${stats.spread.toFixed(2)}. ${selectedMembers.size} members selected.`;
+      region.textContent = content.ui.live_summary.replace('{lat}', sample.lat.toFixed(1)).replace('{lon}', sample.lon.toFixed(1)).replace('{observed}', sample.observed.toFixed(2)).replace('{predicted}', stats.ensQ2.toFixed(2)).replace('{spread}', stats.spread.toFixed(2)).replace('{count}', selectedMembers.size);
     }
   }
 
   // === Initial render ===
   host.innerHTML = `
+    <div class="ux-explorer-heading"><h3>${explorer.title}</h3><p>${md(explorer.intro, ctx)}</p></div>
     <div class="ux-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="ux-explorer">
       <div>
         <div class="ux-member-grid-wrapper">
           <div class="ux-member-grid-controls">
-            <div class="ux-preset-chip" aria-pressed="true">All ${members.length}</div>
-            <div class="ux-preset-chip">One split</div>
-            <div class="ux-preset-chip">Same member index</div>
-            <div class="ux-preset-chip">Random</div>
-            <div class="ux-preset-chip">Single</div>
-            <div class="ux-selection-label">Members selected: ${members.length}</div>
+            ${explorer.presets.map((preset, index) => `<button type="button" class="ux-preset-chip" aria-pressed="${index === 0}">${preset.label}</button>`).join('')}
+            <div class="ux-selection-label">${ui.member_count.replace('{count}', members.length)}</div>
           </div>
 
           <div class="ux-random-controls ux-hidden">
-            <label>
-              N:
+            <label aria-label="${ui.random_count_label}">
+              ${ui.random_count_label}:
               <input type="range" class="ux-random-slider" min="2" max="${members.length}" value="10">
               <span class="ux-random-value">10</span>
             </label>
-            <button class="ux-reshuffle-btn">Reshuffle</button>
+            <button type="button" class="ux-reshuffle-btn">${ui.reshuffle}</button>
           </div>
 
           <div class="ux-member-grid"></div>
@@ -1045,19 +1044,19 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
 
         <div class="ux-metrics-grid">
           <div class="ux-metric-tile ux-rmse">
-            <div class="ux-metric-label">RMSE</div>
+            <div class="ux-metric-label">${labels.rmse}</div>
             <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
           </div>
           <div class="ux-metric-tile ux-coverage">
-            <div class="ux-metric-label">80% coverage</div>
+            <div class="ux-metric-label">${labels.coverage}</div>
             <div class="ux-metric-value">—<span class="ux-metric-unit">%</span></div>
           </div>
           <div class="ux-metric-tile ux-width">
-            <div class="ux-metric-label">Mean Q10–Q90</div>
+            <div class="ux-metric-label">${labels.width}</div>
             <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
           </div>
           <div class="ux-metric-tile ux-spread">
-            <div class="ux-metric-label">Mean spread</div>
+            <div class="ux-metric-label">${labels.spread}</div>
             <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
           </div>
         </div>
@@ -1080,17 +1079,17 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     <div class="ux-sample-inspector">
       <div class="ux-inspector-header">
         <div>
-          <strong>Sample inspector</strong>
+          <strong>${ui.sample_inspector}</strong>
         </div>
         <div class="ux-sample-nav">
-          <button class="ux-nav-btn" aria-label="Previous sample">← Prev</button>
-          <button class="ux-nav-btn" aria-label="Next sample">Next →</button>
-          <select class="ux-sort-select" aria-label="Jump to">
-            <option value="">Jump to...</option>
-            <option value="uncertain">Most uncertain</option>
-            <option value="least">Least uncertain</option>
-            <option value="error">Largest error</option>
-            <option value="random">Random</option>
+          <button type="button" class="ux-nav-btn" aria-label="${ui.previous_sample}">${ui.previous_sample}</button>
+          <button type="button" class="ux-nav-btn" aria-label="${ui.next_sample}">${ui.next_sample}</button>
+          <select class="ux-sort-select" aria-label="${ui.jump_to}">
+            <option value="">${ui.jump_to}</option>
+            <option value="uncertain">${ui.sort_options[0]}</option>
+            <option value="least">${ui.sort_options[1]}</option>
+            <option value="error">${ui.sort_options[2]}</option>
+            <option value="random">${ui.sort_options[3]}</option>
           </select>
         </div>
       </div>
@@ -1213,6 +1212,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
 
 window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
   const { data, content } = ctx;
+  const ui = content.ui;
   const { variance_means } = data;
 
   // Training color for split variance (blue-ish)
@@ -1224,11 +1224,11 @@ window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
     <div class="ux-variance-legend">
       <div class="ux-variance-legend-item">
         <div class="ux-variance-legend-box" style="background: ${colTrain};"></div>
-        <span>Split (data)</span>
+        <span>${ui.variance_split}</span>
       </div>
       <div class="ux-variance-legend-item">
         <div class="ux-variance-legend-box" style="background: ${colHpo};"></div>
-        <span>${data.run.method === 'rashomon' ? 'Within split (Rashomon + refit)' : 'Within split (independent HPO)'}</span>
+        <span>${data.run.method === 'rashomon' ? ui.variance_rashomon : ui.variance_independent}</span>
       </div>
     </div>
 
@@ -1290,7 +1290,7 @@ window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
   const splitPct = ((q05.split_var / total05) * 100).toFixed(1);
   const hpoPct = ((q05.hpo_var / total05) * 100).toFixed(1);
 
-  caption.textContent = `For the median, ${splitPct}% of member variance comes from which data a model saw, ${hpoPct}% from variation within a split (${data.run.method === 'rashomon' ? 'selected model choices and refit randomness' : 'independent HPO searches'}).`;
+  caption.textContent = (data.run.method === 'rashomon' ? ui.variance_caption_rashomon : ui.variance_caption_independent).replace('{split}', splitPct).replace('{within}', hpoPct);
 };
 
 // ============================================================================
@@ -1298,19 +1298,20 @@ window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
 // ============================================================================
 
 window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
-  const { data } = ctx;
+  const { data, content } = ctx;
+  const ui = content.ui;
   const { spread_vs_error } = data;
   const NS = 'http://www.w3.org/2000/svg';
 
   const series = [
-    { key: 'member_std', label: 'Member std', color: '--c-test' },
-    { key: 'scaled_iqr', label: 'Scaled Q90-Q10', color: '--accent' },
-    { key: 'combined', label: 'Combined', color: '--c-validation' },
+    { key: 'member_std', label: ui.spread_series[0], color: '--c-test' },
+    { key: 'scaled_iqr', label: ui.spread_series[1], color: '--accent' },
+    { key: 'combined', label: ui.spread_series[2], color: '--c-validation' },
   ];
   const visible = new Set(['member_std', 'scaled_iqr']);
 
   host.innerHTML = `
-    <div class="ux-spread-legend" role="group" aria-label="Uncertainty estimates">
+    <div class="ux-spread-legend" role="group" aria-label="${ui.uncertainty_estimates}">
       ${series.map((s) => `
         <button type="button" class="ux-spread-legend-chip" data-series="${s.key}" aria-pressed="${visible.has(s.key)}" style="--chip-color: var(${s.color})">
           <span class="ux-chip-swatch"></span>${s.label}
@@ -1364,7 +1365,7 @@ window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
     }));
     svg.appendChild(el('text', {
       x: xScale(hi) - 6, y: yScale(hi) + 14, 'text-anchor': 'end', 'font-size': 11, fill: muted,
-    }, 'perfect: error = uncertainty'));
+    }, ui.perfect_line));
 
     active.forEach((s) => {
       const color = getCSSVar(s.color);
@@ -1373,16 +1374,16 @@ window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
       svg.appendChild(el('path', { d, stroke: color, 'stroke-width': 2, fill: 'none' }));
       pts.forEach((p) => {
         const c = el('circle', { cx: xScale(p.u), cy: yScale(p.rmse), r: 4, fill: color });
-        c.appendChild(el('title', {}, `${s.label}: uncertainty ${fmt(p.u, 2)}, RMSE ${fmt(p.rmse, 2)} µmol/kg (n = ${p.n})`));
+        c.appendChild(el('title', {}, ui.spread_point_title.replace('{series}', s.label).replace('{uncertainty}', fmt(p.u, 2)).replace('{rmse}', fmt(p.rmse, 2)).replace('{count}', p.n)));
         svg.appendChild(c);
       });
     });
 
-    svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, 'Predicted uncertainty, binned (µmol/kg)'));
+    svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, ui.spread_axis_x));
     svg.appendChild(el('text', {
       x: 13, y: margin.top + plotH / 2, 'text-anchor': 'middle', 'font-size': 11, fill: muted,
       transform: `rotate(-90 13 ${margin.top + plotH / 2})`,
-    }, 'RMSE of ensemble median (µmol/kg)'));
+    }, ui.spread_axis_y));
   };
 
   host.querySelectorAll('.ux-spread-legend-chip').forEach((chip) => {
@@ -1400,11 +1401,7 @@ window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
   });
   setupSVGResize(plot, svg, render);
 
-  host.querySelector('.ux-spread-caption').innerHTML = `
-    Correlation with absolute error: <strong>r = ${fmt(spread_vs_error.corr_abs_err.member_std, 2)}</strong> (member std) vs
-    <strong>r = ${fmt(spread_vs_error.corr_abs_err.scaled_iqr, 2)}</strong> (scaled Q90-Q10).
-    Points above the dashed line mean the real error is larger than the predicted uncertainty.
-  `;
+  host.querySelector('.ux-spread-caption').textContent = ui.spread_caption.replace('{member}', fmt(spread_vs_error.corr_abs_err.member_std, 2)).replace('{scaled}', fmt(spread_vs_error.corr_abs_err.scaled_iqr, 2));
 };
 
 // ============================================================================
@@ -1412,18 +1409,19 @@ window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
 // ============================================================================
 
 window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
-  const { data } = ctx;
+  const { data, content } = ctx;
+  const ui = content.ui;
   const { growth } = data;
   const NS = 'http://www.w3.org/2000/svg';
 
   host.innerHTML = `
     <div class="ux-growth-panels">
       <div class="ux-growth-panel">
-        <div class="ux-growth-panel-title">RMSE vs members</div>
+        <div class="ux-growth-panel-title">${ui.growth_rmse}</div>
         <div class="ux-growth-plot" data-kind="rmse"><svg class="ux-growth-svg"></svg></div>
       </div>
       <div class="ux-growth-panel">
-        <div class="ux-growth-panel-title">80 % coverage vs members</div>
+        <div class="ux-growth-panel-title">${ui.growth_coverage}</div>
         <div class="ux-growth-plot" data-kind="coverage"><svg class="ux-growth-svg"></svg></div>
       </div>
     </div>
@@ -1439,8 +1437,8 @@ window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
 
   // kind: key in growth rows, yLabel, optional reference value (dashed) with label, extra y-range to include
   const specs = {
-    rmse: { key: 'rmse', yLabel: 'RMSE (µmol/kg)', include: [], pad: 0.15 },
-    coverage: { key: 'coverage80', yLabel: 'Coverage', ref: { value: 0.8, label: 'nominal 80 %' }, include: [0.8], pad: 0.1 },
+    rmse: { key: 'rmse', yLabel: ui.chart_axis_rmse, include: [], pad: 0.15 },
+    coverage: { key: 'coverage80', yLabel: ui.chart_axis_coverage, ref: { value: 0.8, label: ui.nominal_coverage }, include: [0.8], pad: 0.1 },
   };
   const xTicks = growth.map((d) => d.n).filter((n) => [1, 7, 14, 21, 28, 42].includes(n));
 
@@ -1487,11 +1485,12 @@ window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
       svg.appendChild(el('path', { d, stroke: accent, 'stroke-width': 2, fill: 'none' }));
       growth.forEach((row) => {
         const c = el('circle', { cx: xScale(row.n), cy: yScale(row[spec.key]), r: 3.5, fill: accent });
-        c.appendChild(el('title', {}, `${row.n} members: ${spec.key === 'coverage80' ? (row[spec.key] * 100).toFixed(1) + ' %' : row[spec.key].toFixed(2)}`));
+        const value = spec.key === 'coverage80' ? (row[spec.key] * 100).toFixed(1) + ' %' : row[spec.key].toFixed(2);
+        c.appendChild(el('title', {}, ui.growth_point_title.replace('{members}', row.n).replace('{value}', value)));
         svg.appendChild(c);
       });
 
-      svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, 'Ensemble members'));
+      svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, ui.growth_x));
       svg.appendChild(el('text', { x: 12, y: margin.top + plotH / 2, 'text-anchor': 'middle', 'font-size': 11, fill: muted, transform: `rotate(-90 12 ${margin.top + plotH / 2})` }, spec.yLabel));
     };
     setupSVGResize(plot, svg, render);
@@ -1500,8 +1499,5 @@ window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
   const finalRmse = growth[growth.length - 1].rmse;
   const flat = growth.find((d) => d.rmse <= finalRmse + 0.05);
   const finalCov = growth[growth.length - 1].coverage80;
-  host.querySelector('.ux-growth-caption').innerHTML = `
-    Error is within 0.05 µmol/kg of its final value from about <strong>${flat ? flat.n : 'N/A'} members</strong>.
-    Coverage plateaus near <strong>${(finalCov * 100).toFixed(1)} %</strong>, below the nominal 80 %.
-  `;
+  host.querySelector('.ux-growth-caption').textContent = ui.growth_caption.replace('{members}', flat ? flat.n : 'N/A').replace('{coverage}', (finalCov * 100).toFixed(1));
 };

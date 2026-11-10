@@ -1,0 +1,47 @@
+:root, :root[data-theme="light"] {
+  --gv-font: var(--site-body);
+  --gv-card: #fffefa;
+  --gv-card-line: var(--site-line);
+  --gv-sidebar: #eef1eb;
+  --gv-text: var(--site-ink);
+  --gv-muted: var(--site-muted);
+  --gv-accent: var(--site-teal);
+  --gv-radius: 3px;
+  --gv-shadow: none;
+  --gv-map-bg: var(--site-paper);
+  --gv-land: #f1efe5;
+  --gv-water: var(--site-paper);
+  --gv-rail: #b8cbc2;
+  --gv-hover: #e1ebe4;
+  color-scheme: light;
+}
+html, body { height: auto; }
+body { margin: 0; overflow: auto; background: var(--site-paper); color: var(--site-ink); font: 16px/1.5 var(--site-body); }
+a { color: var(--site-teal); }
+.explore-page { width: 100%; margin: 0; padding: 0; }
+.explore-intro { max-width: 850px; margin-bottom: 24px; }
+.explore-intro h1 { font: 500 clamp(38px, 5vw, 68px)/1.06 var(--site-display); letter-spacing: -.04em; margin: 0 0 16px; }
+.explore-intro p { color: var(--site-muted); }
+.explore-notice { font-size: 14px; }
+.explore-footnote { font-size: 13px; color: var(--site-muted); }
+#gv-app { position: relative; inset: auto; width: 100%; height: calc(100vh - 65px); min-height: 560px; border-block: 1px solid var(--site-line); font: 14px/1.45 var(--gv-font); }
+.gv-topbar { padding: 12px max(16px, 2vw); gap: 12px; background: var(--site-paper); }
+.gv-sidebar { background: var(--gv-sidebar); }
+.gv-variable-cards .vc-name, .gv-panel h2 { color: var(--site-ink); }
+.gv-app button, .gv-app input, .gv-app select { border-radius: 3px; }
+.gv-app .ol-control { background: var(--site-paper); border: 1px solid var(--site-line); border-radius: 3px; padding: 2px; }
+.gv-app .ol-control button { background: var(--site-paper); color: var(--site-ink); }
+.gv-app .ol-control button:hover { background: var(--gv-hover); }
+.gv-app .ol-attribution { background: var(--site-paper); color: var(--site-muted); }
+.gv-app .ol-attribution a { color: var(--site-teal); }
+@media (max-width: 650px) {
+  .explore-page { width: 100%; }
+  #gv-app { --gv-sb-width: 230px !important; height: 75vh; min-height: 560px; }
+  .gv-topbar { flex-wrap: wrap; }
+  .gv-store-picker { flex-wrap: wrap; }
+  .gv-store-picker input:first-child { flex-basis: 100%; }
+}
+
+/* Keep each variable's colour scale visible while its layer controls are closed. */
+.gv-variable-cards .vc-card .vc-settings { display: flex; }
+.gv-variable-cards .vc-card:not(.selected.open) .vc-settings > :not(.lg-card) { display: none; }

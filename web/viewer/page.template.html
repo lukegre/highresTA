@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>HighresTA</title>
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@10.10.0/ol.css">
+  <link rel="stylesheet" href="viewer/explorer.css?v=integrated">
+  <link rel="stylesheet" href="explore.css?v=legends">
+</head>
+<body>
+  <nav class="site-nav"></nav>
+  <main class="explore-page">
+    <p class="explore-notice" id="viewer-error" role="status" hidden></p>
+    <!-- GEOZARR_VIEWER -->
+  </main>
+  <script src="site.js" defer></script>
+  <script type="module" src="viewer/explorer.js?v=center205"></script>
+  <script>
+    setTimeout(() => {
+      document.getElementById('viewer-error').hidden = !!document.querySelector('.ol-viewport');
+    }, 30000);
+  </script>
+</body>
+</html>

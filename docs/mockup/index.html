@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>HighresTA · Surface ocean alkalinity</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f8f7f2;color:#183f42;font:16px/1.5 "Inter",Arial,sans-serif}header{border-bottom:1px solid #c7d3cd}header,main,footer{padding-inline:max(5vw,calc((100vw - 1220px)/2))}header{display:flex;align-items:center;justify-content:space-between;gap:24px;flex-wrap:wrap;padding-block:16px}header strong{font: bold 25px Georgia}nav{display:flex;gap:20px;flex-wrap:wrap}a{color:#165c5d;text-underline-offset:5px}nav a{text-decoration:none;padding:5px 0}nav a[aria-current]{border-bottom:2px solid #146c69;font-weight:700}main{padding-block:42px}h1,h2,h3{font-family:"Instrument Serif",Georgia,serif;font-weight:500;line-height:1.08;margin:0 0 16px}h1{font-size:clamp(42px,6vw,84px);letter-spacing:-.045em;max-width:950px}h2{font-size:clamp(32px,4vw,56px)}h3{font-size:25px}.lead{font-size:19px;max-width:74ch}.facts{display:flex;gap:36px;flex-wrap:wrap;margin:24px 0 35px;padding-block:12px;border-block:1px solid #c7d3cd}.facts b{margin-right:5px}.pair{display:grid;grid-template-columns:1fr 1fr;gap:24px}figure{margin:0}img{display:block;width:100%;border:1px solid #c1d4cf}figcaption{padding-top:14px}small,footer{color:#49625f}.scale{display:inline-block;width:72px;height:8px;background:linear-gradient(90deg,#440154,#21918c,#fde725)}footer{border-top:1px solid #c7d3cd;padding-block:14px;font-size:13px}fieldset{border:1px solid #baccc4;padding:20px;margin:24px 0}button,select{font:inherit;color:inherit;padding:5px 9px}output{display:block;margin-block:14px;font:24px Georgia}.explore{display:grid;grid-template-columns:210px 1fr;gap:24px}iframe{width:100%;height:68vh;background:white;border:1px solid #c1d4cf}.linkrow{margin-top:25px}[hidden]{display:none!important}@media(max-width:750px){.pair,.explore{grid-template-columns:1fr}main{padding-block:28px}.facts,nav{gap:14px}header{gap:8px}}
+</style>
+<header><strong>HighresTA</strong><nav aria-label="Project pages"><a href="#overview">Overview</a><a href="#method">Method</a><a href="#comparison">Run comparison</a><a href="#data">Explore data</a></nav></header>
+<main>
+<section id="overview"><h1>Mapping surface ocean alkalinity</h1>
+<p class="lead">How does total alkalinity vary between research cruises? HighresTA combines bottle measurements with salinity, temperature and other ocean fields to estimate surface alkalinity and its uncertainty around the globe.</p>
+<div class="facts"><span><b>0.25°</b> target grid</span><span><b>8 days</b> between fields</span><span><b>6</b> model runs compared</span></div>
+<div class="pair"><figure><img src="observations.png" alt="Global map of GLODAP bottle locations tracing cruise tracks across ocean basins"><figcaption><h3>Where ships sampled</h3>42,134 collocated GLODAPv2.2023 bottle records before training filters.</figcaption></figure>
+<figure><img src="predictions.png" alt="Global map of ensemble median estimates at 700 held-out sample locations"><figcaption><h3>What the model predicts</h3>Ensemble Q50 at 700 held-out bottles, pooled across dates.<br><small>≤2150 <i class="scale"></i> ≥2450 µmol kg⁻¹ · Rashomon run 20261106</small></figcaption></figure></div>
+<p class="linkrow"><a href="#method">Follow a bottle through the model →</a></p></section>
+<section id="method" hidden><h2>From salinity to a prediction</h2><p class="lead">A linear fit to salinity provides a baseline. CatBoost learns the remaining differences from measured alkalinity and estimates three quantiles. This run averages each quantile across 42 models.</p>
+<fieldset><legend>Inspect a held-out bottle</legend><label>Bottle <select id="bottle"></select></label><output id="result" aria-live="polite"></output><small id="detail"></small></fieldset>
+<p>Entire cruises stay together when observations are split. Six validation splits each contribute seven near-optimal models, with a separate block reserved for testing.</p><a href="../../web/method.html">Open the full interactive method →</a> <small>(served site)</small></section>
+<section id="comparison" hidden><h2>How the variants perform</h2><p class="lead">Start with identical held-out rows. Across the runs, replacing in-situ salinity with gridded salinity roughly doubles RMSE. The coastal and offshore breakdown shows where that penalty is largest.</p><p><a href="../reports/run_comparison.html#heldout">Open full-width comparison →</a></p><iframe title="Existing interactive run comparison" loading="lazy" src="../reports/run_comparison.html#heldout"></iframe></section>
+<section id="data" hidden><h2>Explore the reconstruction</h2><p class="lead">Viewer layout preview. The map shows saved bottle predictions. The published grid will support date selection, pan and zoom, and a value readout.</p>
+<div class="explore"><div><h3>Map layers</h3><label>Preview layer<br><select id="layer"><option value="predictions">Predicted alkalinity</option><option value="observations">GLODAP locations</option></select></label></div><figure><img id="map" src="predictions.png" alt="Selected global map layer"><figcaption id="legend">Q50 · ≤2150 <i class="scale"></i> ≥2450 µmol kg⁻¹</figcaption></figure></div></section>
+</main><footer>HighresTA · Project website mockup</footer>
+<script>
+const samples = [{"date": "1982-06-27", "lat": 24.7, "lon": 36.37, "cruise": "35MF19820626", "observed": 2456.0, "q": [2463.9, 2482.8, 2500.2]}, {"date": "2000-09-30", "lat": 76.67, "lon": 22.8, "cruise": "58AA20000923", "observed": 2256.0, "q": [2253.8, 2267.2, 2286.9]}, {"date": "2004-05-28", "lat": 72.25, "lon": -159.22, "cruise": "32H120040515", "observed": 2212.8, "q": [2166.0, 2202.7, 2261.8]}, {"date": "2009-03-30", "lat": -24.0, "lon": -24.88, "cruise": "740H20090307", "observed": 2429.2, "q": [2422.8, 2426.9, 2430.5]}, {"date": "2013-01-23", "lat": -63.51, "lon": 59.45, "cruise": "49NZ20130106", "observed": 2287.9, "q": [2283.8, 2287.5, 2291.3]}];
+const bottle=document.querySelector('#bottle');
+samples.forEach((s,i)=>bottle.add(new Option(s.date+' · '+s.lat+'°, '+s.lon+'°',i)));
+function inspectBottle(){
+ const s=samples[bottle.selectedIndex];
+ document.querySelector('#result').textContent='Measured '+s.observed+'  ·  Predicted '+s.q[1]+' µmol kg⁻¹';
+ document.querySelector('#detail').textContent='Q10–Q90 interval '+s.q[0]+'–'+s.q[2]+' µmol kg⁻¹ · Cruise '+s.cruise+' · Rashomon run 20261106';
+}
+bottle.onchange=inspectBottle;inspectBottle();
+document.querySelector('#layer').onchange=e=>{
+ const predicted=e.target.value==='predictions';
+ document.querySelector('#map').src=e.target.value+'.png';
+ document.querySelector('#legend').innerHTML=predicted?'Q50 · ≤2150 <i class="scale"></i> ≥2450 µmol kg⁻¹':'Collocated GLODAPv2.2023 bottle locations';
+};
+function navigate(){
+ const ids=['overview','method','comparison','data'];
+ const page=ids.includes(location.hash.slice(1))?location.hash.slice(1):'overview';
+ ids.forEach(id=>document.getElementById(id).hidden=id!==page);
+ document.querySelectorAll('nav a').forEach(a=>{if(a.hash==='#'+page)a.setAttribute('aria-current','page');else a.removeAttribute('aria-current')});
+ window.scrollTo(0,0);
+}
+window.addEventListener('hashchange',navigate);navigate();
+</script></html>

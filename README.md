@@ -16,7 +16,7 @@ ensemble of quantile regressors that give TA with an uncertainty estimate (10th,
   near-optimal trials (a Rashomon set) are refitted as members.
   The spread across members is decomposed into a data-split and a within-split (Rashomon/HPO) component.
 
-Schematics are in [`docs/`](docs/), and a full methods page is in [`web/`](web/README.md).
+Schematics are in [`docs/`](docs/), and the [project website](web/README.md) includes the interactive method, six-run comparison and GeoZarr viewer. Preview with `python3 -m http.server 8000 --directory web`.
 
 ## Setup
 
@@ -119,7 +119,7 @@ cd web && python -m http.server 8000
 | `src/highres_ta/` | Package: data loading, features, estimator, ensemble, training, splits, inference |
 | `scripts/` | Command-line entry points for training, inference and station time series |
 | `notebooks/` | Numbered analysis steps: collocation, EDA, training experiments, validation |
-| `web/` | Static methods page and the script that builds its data |
+| `web/` | Static project website, interactive methods, run comparison and GeoZarr viewer |
 | `docs/` | Train/test split and training schematics |
 | `tests/` | Unit tests |
 

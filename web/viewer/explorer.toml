@@ -1,0 +1,75 @@
+# Rebuild with python3 web/viewer/build.py /path/to/geozarr-viewer.
+title = "HighresTA data explorer"
+# Set this to the public GeoZarr pyramid URL when available.
+store = "https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/"
+endpoint = ""
+relay = "proxy/"
+theme = "light"
+
+[layout]
+sidebar = "left"
+sidebar_width = 320
+sidebar_collapsible = true
+
+# "Global settings": one collapsible block pinned to the bottom of the sidebar (expanded by default)
+[groups."Global settings"]
+collapsed = false
+icon = "gear"
+
+[[components]]
+name = "info-panel"
+slot = "sidebar"
+
+[[components]]
+name = "variable-cards"
+slot = "sidebar"
+
+[[components]]
+name = "label-mode"
+slot = "sidebar-bottom"
+group = "Global settings"
+
+[[components]]
+name = "dim-roles"
+slot = "sidebar-bottom"
+group = "Global settings"
+
+[[components]]
+name = "center-lon"
+slot = "sidebar-bottom"
+group = "Global settings"
+
+[[components]]
+name = "basemap"
+options = { default = "land" }
+slot = "sidebar-bottom"
+group = "Global settings"
+
+[[components]]
+name = "cmap-sources"
+slot = "sidebar-bottom"
+group = "Global settings"
+
+[[components]]
+name = "style-controls"
+options = { placement = "card" }
+
+[[components]]
+name = "legend"
+slot = "sidebar"
+options = { placement = "card" }
+
+[[components]]
+name = "var-attrs"
+
+[[components]]
+name = "timeline"
+slot = "bottom"
+
+[[components]]
+name = "dim-sliders"
+slot = "overlay-bl"
+
+[[components]]
+name = "readout"
+slot = "overlay-tl"

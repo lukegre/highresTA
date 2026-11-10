@@ -12,9 +12,12 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
+from bottle_baseline import bottle_baselines
+
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "src"))
 import highres_ta as ta  # noqa: E402
+from highres_ta.training import stack_salinity  # noqa: E402
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("--run", type=Path, help="Run directory; defaults to paths.output_dir.")
@@ -48,7 +51,8 @@ raw = ta.load_data(str(ta.resolve_path(config["paths"]["training_data"])))
 if legacy and "year" in raw:
     raw = raw[raw.year.between(1993, 2022)]
 raw_feat = [n for n in dc["feature_names"] if n not in dc["engineered_feature_names"]]
-cols = list(dict.fromkeys(dc["coordinate_columns"] + raw_feat + ["talk"] + dc["quality_columns"]))
+salinity_sources = dc.get("salinity_source") or []
+cols = list(dict.fromkeys(dc["coordinate_columns"] + raw_feat + ["talk"] + dc["quality_columns"] + list(salinity_sources)))
 df = raw[cols].set_index(dc["coordinate_columns"], drop=False)
 funnel = [("Collocated bottle samples", len(df), df.expocode.nunique())]
 df = ta.drop_extreme_salinities(df, min=dc["minimum_salinity"], max=dc["maximum_salinity"])
@@ -153,14 +157,22 @@ calib = {"quantile": QS, "empirical": [round(float(np.mean(y <= ens[:, i])), 3) 
 # ---- sample of test observations with all member predictions --------------------------
 m_test = meta.iloc[rows].reset_index(drop=True)
 pick = np.sort(rng.choice(len(rows), min(N_SAMPLE, len(rows)), replace=False))
+if salinity_sources:
+    df = stack_salinity(df, salinity_sources, dc["minimum_salinity"], dc["maximum_salinity"])
+sample_rows = rows[pick]
+baseline = None
+if config["model"]["linear_features"] == ["salinity"] and config["model"]["polynomial_degree"] == 1:
+    baseline = bottle_baselines(df, meta.block.to_numpy(), sp_idx, sample_rows)
 sample = []
-for i in pick:
+for position, i in enumerate(pick):
     sample.append({
         "id": int(rows[i]), "cruise": m_test.expocode[i],
         "date": str(m_test.time[i])[:10], "lat": round(float(m_test.lat[i]), 2), "lon": round(float(m_test.lon[i]), 2),
         "depth": round(float(m_test.depth[i]), 0), "observed": round(float(y[i]), 1),
         "pred": np.round(P[:, i, :], 1).tolist(),  # [member][quantile]
     })
+    if baseline is not None:
+        sample[-1].update(salinity=round(float(df.salinity.iloc[rows[i]]), 4), baseline=round(float(baseline[position]), 2))
 
 out = {
     "run": {"name": RUN.name, "n_members": len(members), "n_splits": int(sp_idx.max()), "n_replicates": max(m["replicate"] for m in members) + 1,

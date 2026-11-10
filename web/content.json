@@ -1,9 +1,123 @@
 {
+  "project": {
+    "brand": "HighresTA",
+    "navigationLabel": "Project",
+    "links": [
+      {
+        "label": "Overview",
+        "href": "index.html"
+      },
+      {
+        "label": "Method",
+        "href": "method.html"
+      },
+      {
+        "label": "Run comparison",
+        "href": "comparison.html"
+      },
+      {
+        "label": "Explore data",
+        "href": "explore.html"
+      }
+    ],
+    "repository": {
+      "label": "Project repository ↗",
+      "href": "https://github.com/lukegre/highresTA"
+    }
+  },
+  "overview": {
+    "title": "Surface ocean alkalinity · HighresTA",
+    "heading": "Mapping surface ocean alkalinity",
+    "intro": "How does total alkalinity vary between research cruises? HighresTA uses bottle measurements, salinity, temperature and other ocean fields to estimate the surface ocean’s capacity to neutralize acid.",
+    "sectionNav": [
+      {
+        "label": "Project goal",
+        "href": "#goal"
+      },
+      {
+        "label": "Observations & output",
+        "href": "#maps"
+      },
+      {
+        "label": "Explore the project",
+        "href": "#explore-project"
+      }
+    ],
+    "sectionNavLabel": "Overview sections",
+    "facts": [
+      {
+        "value": "0.25°",
+        "label": "spatial resolution"
+      },
+      {
+        "value": "8 days",
+        "label": "between fields"
+      },
+      {
+        "value": "6",
+        "label": "model configurations tested"
+      }
+    ],
+    "mapsLabel": "Observations and reconstruction",
+    "maps": [
+      {
+        "heading": "Where ships sampled",
+        "image": "maps/glodap.webp",
+        "alt": "GLODAP bottle locations trace narrow ship tracks, with large unsampled areas between cruises.",
+        "legend": "Bottle locations",
+        "symbol": "point",
+        "description": "These 42,134 collocated GLODAPv2.2023 bottle records show the observational coverage before training filters. Some variants also include Mediterranean observations from CARIMED."
+      },
+      {
+        "heading": "What the model predicts",
+        "image": "maps/alkalinity-2021-05-21.webp",
+        "alt": "Estimated surface total alkalinity on 21 May 2021.",
+        "legend": "1,900 to 2,500 µmol kg⁻¹",
+        "symbol": "gradient",
+        "description": "A snapshot of surface alkalinity on 21 May 2021 from the OceanSODAv2 total alkalinity model (run E).",
+        "full": "explore.html?time=2021-05-21",
+        "linkLabel": "Explore the full dataset"
+      }
+    ],
+    "routesLabel": "Explore the project",
+    "routes": [
+      {
+        "label": "Follow the method →",
+        "href": "method.html#model",
+        "description": "Choose a bottle, inspect its predicted interval and see how holding out whole cruises tests the ensemble."
+      },
+      {
+        "label": "Compare the runs →",
+        "href": "comparison.html",
+        "description": "Trace six model runs from their common baseline, then compare their errors on held-out bottles."
+      },
+      {
+        "label": "Explore the data →",
+        "href": "explore.html",
+        "description": "Open a public GeoZarr pyramid to inspect gridded fields by location, variable and date."
+      }
+    ]
+  },
+  "dataViewer": {
+    "title": "Explore data · HighresTA",
+    "heading": "Explore the gridded data",
+    "intro": "Select a variable and date, then inspect the map for values at individual locations.",
+    "notice": "Use the store picker to open a public GeoZarr pyramid.",
+    "exampleLabel": "View the project’s example map ↗",
+    "exampleHref": "index.html#maps",
+    "viewerTitle": "GeoZarr data explorer",
+    "error": "The map could not start. Check your internet connection and access to the viewer’s CDN dependencies, then reload this page.",
+    "footnote": "Compatible stores expose multiscale GeoZarr data with browser-readable metadata and chunks.",
+    "setup": {
+      "label": "Setup details",
+      "href": "viewer/README.md"
+    }
+  },
   "site": {
     "title": "High-resolution Total Alkalinity",
     "short_title": "highres-TA",
     "description": "How a quantile-regression ensemble estimates ocean total alkalinity and its uncertainty.",
-    "footer": "Swiss Data Science Center · Current methods: split-wise Rashomon ensemble · Interactive results identify their source run above.",
+    "footer": "Swiss Data Science Center · Current methods: split-wise near-optimal ensemble · Interactive results identify their source run above.",
     "nav": [
       {
         "id": "data",
@@ -248,6 +362,10 @@
           ]
         },
         {
+          "type": "worked-bottle",
+          "title": "Worked bottle · held-out test example"
+        },
+        {
           "type": "table",
           "title": "One Optuna TPE study per split: target 300 completed trials, 50 random start-up trials",
           "columns": [
@@ -315,7 +433,7 @@
             {
               "tag": "Axis 2 · 7 selected members",
               "title": "Diverse models with similar loss",
-              "body": "The Rashomon set contains completed trials with loss at most **1.02 × the best loss**. Starting with the best trial, greedily select the candidate furthest from its nearest selected member. Distance equally weights dropped-feature Jaccard distance and mean normalised hyperparameter distance (log-scaled where searched on a log scale)."
+              "body": "The near-optimal set contains completed trials with loss at most **1.02 × the best loss**. Starting with the best trial, greedily select the candidate furthest from its nearest selected member. Distance equally weights dropped-feature Jaccard distance and mean normalised hyperparameter distance (log-scaled where searched on a log scale)."
             }
           ]
         },
@@ -338,7 +456,7 @@
           "type": "callout",
           "tone": "info",
           "title": "Saved run provenance",
-          "body": "Training saves the merged configuration, including command-line overrides, as `configs.json` in the run folder. Each split retains its SQLite study and a Rashomon CSV with trial loss, rank and selection flags. Each member records its trial number, dropped features, refit iterations, data fingerprint and validation/test scores."
+          "body": "Training saves the merged configuration, including command-line overrides, as `configs.json` in the run folder. Each split retains its SQLite study and a near-optimal CSV with trial loss, rank and selection flags. Each member records its trial number, dropped features, refit iterations, data fingerprint and validation/test scores."
         }
       ]
     },
@@ -365,7 +483,7 @@
             {
               "tag": "Decomposed",
               "title": "Between vs. within splits",
-              "body": "Population member variance = variance of the split means + mean within-split variance. For the current design, the within-split term includes Rashomon model choices and refit randomness. The legacy `hpo_var` field stores this term."
+              "body": "Population member variance = variance of the split means + mean within-split variance. For the current design, the within-split term includes near-optimal model choices and refit randomness. The legacy `hpo_var` field stores this term."
             }
           ]
         },
@@ -388,7 +506,7 @@
           "type": "callout",
           "tone": "key",
           "title": "Read this as a ranking, not an error bar",
-          "body": "Assess both the magnitude and ranking of uncertainty on held-out data. Member spread is not calibrated to prediction error. The displayed historical diagnostics must be re-evaluated after the Rashomon run completes."
+          "body": "Assess both the magnitude and ranking of uncertainty on held-out data. Member spread is not calibrated to prediction error. The plots use held-out predictions from the run identified above."
         },
         {
           "type": "ensemble-growth",
@@ -400,7 +518,7 @@
       "id": "limitations",
       "kicker": "07 · Caveats",
       "title": "What is still open",
-      "lead": "Check the source-run notice above when interpreting the diagnostics. Export the completed Rashomon run to evaluate the new selection method.",
+      "lead": "Read these diagnostics alongside the source run and its cruise coverage.",
       "blocks": [
         {
           "type": "callout",
@@ -436,7 +554,7 @@
         },
         {
           "type": "text",
-          "body": "Evaluation reports all samples and, when bottom depth is available, a subset deeper than 300 m. The depth threshold affects reporting rather than training selection. Rashomon loss tolerance is an empirical model-selection rule, not a confidence level or posterior probability."
+          "body": "Evaluation reports all samples and, when bottom depth is available, a subset deeper than 300 m. The depth threshold affects reporting rather than training selection. near-optimal loss tolerance is an empirical model-selection rule, not a confidence level or posterior probability."
         }
       ]
     }
@@ -476,6 +594,524 @@
       "coverage": "80 % coverage",
       "width": "Mean Q10–Q90 width",
       "n_members": "Members selected"
+    }
+  },
+  "ui": {
+    "current_results_title": "Displayed results · split-wise near-optimal ensemble",
+    "historical_results_title": "Displayed results · independent-tuning ensemble",
+    "current_results_body": "Run: {run} ({years}). Interactive charts and scores below use this completed near-optimal run.",
+    "historical_results_body": "Run: {run} ({years}). The method description below covers the near-optimal design, while these counts and charts use the earlier independent-tuning run, which required SSH. They do not evaluate the near-optimal method.",
+    "member_presets": [
+      "All members",
+      "One split",
+      "Same member index",
+      "Random subset",
+      "Single member"
+    ],
+    "member_count": "Members selected: {count}",
+    "random_count_label": "Members in random subset",
+    "reshuffle": "Reshuffle",
+    "sample_inspector": "Sample inspector",
+    "previous_sample": "← Previous",
+    "next_sample": "Next →",
+    "jump_to": "Jump to…",
+    "sort_options": [
+      "Most uncertain",
+      "Least uncertain",
+      "Largest error",
+      "Random sample"
+    ],
+    "cruise": "Cruise",
+    "date": "Date",
+    "position": "Position",
+    "depth": "Depth",
+    "observed": "Observed TA",
+    "ensemble_median": "Ensemble median",
+    "error": "Absolute error",
+    "member_spread": "Member spread",
+    "scatter_x": "Observed TA (µmol/kg)",
+    "scatter_y": "Predicted TA (µmol/kg)",
+    "spread_color": "Member spread (µmol/kg)",
+    "variance_split": "Split · training data",
+    "variance_rashomon": "Within split · near-optimal choices + refit",
+    "variance_independent": "Within split · independent HPO",
+    "variance_caption_rashomon": "For the median, {split}% of member variance comes from which data a model saw; {within}% comes from selected model choices and refit randomness within each split.",
+    "variance_caption_independent": "For the median, {split}% of member variance comes from which data a model saw; {within}% comes from independent HPO searches within each split.",
+    "spread_series": [
+      "Member spread",
+      "Scaled quantile width",
+      "Combined"
+    ],
+    "uncertainty_estimates": "Uncertainty estimates",
+    "spread_axis_x": "Predicted uncertainty, binned (µmol/kg)",
+    "spread_axis_y": "Ensemble median RMSE (µmol/kg)",
+    "perfect_line": "ideal: error = uncertainty",
+    "spread_caption": "Correlation with absolute error: member spread r = {member}; scaled Q90–Q10 r = {scaled}. Points above the dashed line mean actual error exceeds predicted uncertainty.",
+    "live_summary": "Bottle at {lat}°, {lon}°: observed TA {observed}, predicted median {predicted}, member spread {spread}; {count} members selected.",
+    "tooltip_cruise": "Cruise:",
+    "tooltip_date": "Date:",
+    "tooltip_position": "Position:",
+    "tooltip_observed": "Observed TA:",
+    "tooltip_predicted": "Predicted median:",
+    "tooltip_spread": "Member spread:",
+    "between_split_spread": "Between-split spread:",
+    "within_split_spread": "Within-split spread:",
+    "members_selected": "Members selected",
+    "chart_axis_rmse": "RMSE (µmol/kg)",
+    "chart_axis_coverage": "Coverage",
+    "nominal_coverage": "nominal 80%",
+    "spread_point_title": "{series}: uncertainty {uncertainty}, RMSE {rmse} µmol/kg (n = {count})",
+    "growth_point_title": "{members} members: {value}",
+    "growth_rmse": "RMSE by ensemble size",
+    "growth_coverage": "80% coverage by ensemble size",
+    "growth_x": "Ensemble members",
+    "growth_caption": "RMSE comes within 0.05 µmol/kg of its final value at about {members} members. Coverage levels near {coverage}%, below the nominal 80%.",
+    "worked_bottle_label": "Held-out bottle",
+    "no_bottle_data": "No saved held-out bottle predictions are available.",
+    "worked_observed": "Observed TA",
+    "worked_q10": "Ensemble Q10",
+    "worked_q50": "Ensemble Q50",
+    "worked_q90": "Ensemble Q90",
+    "worked_with_baseline": "Salinity {salinity} → training-split mean linear baseline {baseline} µmol/kg + CatBoost Q50 residual {residual} µmol/kg = ensemble Q50 {q50} µmol/kg. Observed TA is {observed} µmol/kg; median error is {error} µmol/kg. Q50 member spread (population SD, {members} models): {spread} µmol/kg.",
+    "worked_without_baseline": "Ensemble Q50 {q50} µmol/kg; observed TA {observed} µmol/kg; median error {error} µmol/kg. Member Q50 spread (population SD, {members} models): {spread} µmol/kg. This exported sample does not include the saved training-split baseline fields.",
+    "split_label": "Split",
+    "inner_fold_label": "Inner fold",
+    "block": "Block",
+    "observations": "observations",
+    "cruises": "cruises",
+    "test_role": "test",
+    "validation_role": "validation",
+    "train_role": "train",
+    "heldout_for_early_stopping": "held out for early stopping",
+    "fit_role": "fit",
+    "split_summary": "Split {split} · trains on blocks {blocks} ({observations} observations) · validates on block {validation} · tests on block {test}",
+    "member_header": "Member {index}",
+    "min_rmse": "Minimum RMSE: {value}",
+    "median_rmse": "Median RMSE: {value}",
+    "max_rmse": "Maximum RMSE: {value}",
+    "member_detail": {
+      "hyperparameters": "Hyperparameters",
+      "depth": "Depth",
+      "l2_leaf_reg": "L2 leaf regularization",
+      "learning_rate": "Learning rate",
+      "min_data_in_leaf": "Minimum data in leaf",
+      "random_strength": "Random strength",
+      "trial_selection": "Trial selection",
+      "trial": "Trial",
+      "loss_rank": "Loss rank",
+      "selection": "Selection",
+      "within_rashomon": "Within near-optimal tolerance",
+      "fill_in": "Next-best fill-in",
+      "dropped_features": "Dropped features",
+      "none": "None",
+      "training": "Training",
+      "iterations": "Iterations",
+      "inner_cv_loss": "Inner CV loss",
+      "training_rows": "Training rows",
+      "training_cruises": "Training cruises",
+      "validation_rows": "Validation rows",
+      "test_scores": "Test scores",
+      "rmse": "RMSE",
+      "mae": "MAE",
+      "crps": "CRPS",
+      "coverage": "80% coverage",
+      "validation_rmse": "Validation RMSE",
+      "seed": "Seed"
+    }
+  },
+  "comparison": {
+    "title": "highres-TA run comparison",
+    "hero": "Six quantile-ensemble runs of the surface total alkalinity (TA) reconstruction in models/, compared on held-out bottle data, the shared test block, salinity sensitivity, time-series stations and ensemble composition. Errors are predicted minus observed, in µmol kg⁻¹. Data extracted 2026-11-10.",
+    "lineage_title": "How the runs evolved",
+    "lineage_intro": "The arrows show experimental comparisons, not fine-tuning. Focus, hover or select a run to see its change from the parent.",
+    "lineage": [
+      {
+        "id": "A",
+        "parent": null,
+        "title": "Independent tuning · 1993–2022",
+        "change": "Earlier independent tuning model used only the 1993–2022 GLODAP subset.",
+        "row": 1
+      },
+      {
+        "id": "B",
+        "parent": "A",
+        "title": "Independent tuning · full period",
+        "change": "Removed the date restriction and expanded to the full GLODAPv2023 period; the member-selection design stayed per-replicate HPO.",
+        "row": 1
+      },
+      {
+        "id": "C",
+        "parent": null,
+        "title": "Near-optimal ensemble · GLODAP",
+        "change": "Introduced one Optuna study per split and seven diverse near-best trials, with chl_globcolour among the available features. Uses the same GLODAP row set as B.",
+        "row": 2
+      },
+      {
+        "id": "D",
+        "parent": "C",
+        "title": "Near-optimal ensemble · +CARIMED",
+        "change": "Added CARIMED Mediterranean bottles to training, changing the block partition and expanding the test set.",
+        "row": 2
+      },
+      {
+        "id": "E",
+        "parent": "D",
+        "title": "Gridded salinity stack",
+        "change": "Branch from D: replaced in-situ salinity with the CCI → SODA → multi-observation stack. Config notes confirm the split blocks and test block are shared with the in-situ model.",
+        "row": 2
+      },
+      {
+        "id": "F",
+        "parent": "D",
+        "title": "Stack + salinity predictors",
+        "change": "Alternative branch from D: uses the gridded salinity stack and adds sss_cci and salt_soda as separate model features. Compared with E, this also adds standalone predictors; station evaluation is not yet available.",
+        "row": 3
+      }
+    ],
+    "overview_title": "The runs",
+    "overview_intro": "The two independent tuning runs use the older design (seven separate Optuna studies per split); the four near-optimal runs use one study per split and pick seven diverse near-best trials.",
+    "comparison_warning_title": "Read this before comparing headline numbers.",
+    "comparison_warning": "The runs do not share one test set. A and B/C use GLODAP only (3,891 and 4,139 test rows); D, E and F add CARIMED Mediterranean bottles, which changes the block partition (4,314 test rows, only 332 shared with C). The <a href=\"#heldout\">Held-out comparison</a> fixes this by scoring every row with members that never trained on it (test block plus out-of-fold validation), so C, D, E and F are compared on identical rows.",
+    "findings_title": "What each model gets right and where it breaks",
+    "findings": [
+      {
+        "id": "A",
+        "summary": "Best headline score, but not comparable",
+        "items": [
+          [
+            "strength",
+            "Lowest test RMSE of all runs (19.3 all, 16.0 deep) and the smallest member variance (split 11, HPO 5 (µmol kg⁻¹)²)."
+          ],
+          [
+            "limit",
+            "Trained and tested on a 1993–2022 subset of an earlier data version (3,891 test rows). Its rows cannot be matched to the current data, so the low error says as much about the easier subset as about the model."
+          ],
+          [
+            "limit",
+            "Old per-replicate-HPO design; no validation, station or per-member trial outputs."
+          ]
+        ]
+      },
+      {
+        "id": "B",
+        "summary": "Baseline for the near-optimal redesign",
+        "items": [
+          [
+            "strength",
+            "Same rows as C. Useful as the reference showing what the near-optimal member selection changed."
+          ],
+          [
+            "limit",
+            "Slightly worse than C on identical test rows: RMSE 19.7 vs 18.9, CRPS 6.2 vs 6.0, coverage 0.69 vs 0.72."
+          ],
+          [
+            "limit",
+            "No validation or station evaluation."
+          ]
+        ]
+      },
+      {
+        "id": "C",
+        "summary": "Good in-situ model with a Mediterranean blind spot",
+        "items": [
+          [
+            "strength",
+            "Best Indian (10.9) and Pacific (13.8) held-out RMSE, and the best RADCOR (Galician coast) station scores."
+          ],
+          [
+            "limit",
+            "No Mediterranean training data: DYFAMED RMSE 125 with bias −124; Mediterranean held-out rows bias −79 and 7 % coverage."
+          ],
+          [
+            "limit",
+            "Its maps feed it gridded salinity: held-out RMSE rises from 24.9 to 54.9, bias −9, coverage collapses to 0.40, and ≥ 60° bias reaches −28."
+          ]
+        ]
+      },
+      {
+        "id": "D",
+        "summary": "Adds CARIMED: fixes the Mediterranean, costs a little elsewhere",
+        "items": [
+          [
+            "strength",
+            "DYFAMED RMSE falls from 125 to 22 (gridded); Mediterranean held-out bias −79 → −17. On the 28,988 shared GLODAP rows RMSE 23.8 vs 24.9 for C, best in the Atlantic."
+          ],
+          [
+            "limit",
+            "CARIMED rows remain the hardest data (RMSE 62, bias −17). Pacific, Indian and 20–40° worsen by 2–3 µmol kg⁻¹; RADCOR station RMSE 12 → 18."
+          ],
+          [
+            "limit",
+            "Same gridded-salinity failure as C: RMSE 59.6, coverage 0.42, Arctic/subpolar bias −35."
+          ],
+          [
+            "limit",
+            "Headline test RMSE (26.9) is not a regression vs C (18.9): the test block now contains different, harder rows."
+          ]
+        ]
+      },
+      {
+        "id": "E",
+        "summary": "Consistent with inference, at a price in accuracy",
+        "items": [
+          [
+            "strength",
+            "The right comparison for maps: held-out RMSE 44.7 vs 59.6 for D with gridded salinity, bias ≈ 0 instead of −11, and coverage 0.74 instead of 0.42. Station coverage with gridded T/S rises to 0.72–0.83 at HOT, ALOHA and BATS."
+          ],
+          [
+            "limit",
+            "Still almost twice the in-situ error (44.7 vs 26.4); intervals are twice as wide (49 vs 25)."
+          ],
+          [
+            "limit",
+            "Over-predicts where the gridded products miss fresh water: in-situ S < 30 bias +52, Arctic/subpolar +10. RADCOR stations fail (bias +46, coverage ≈ 0), with gridded and in-situ T/S alike."
+          ],
+          [
+            "limit",
+            "Split 1 members are much worse (member RMSE 52 vs ≈ 42)."
+          ]
+        ]
+      },
+      {
+        "id": "F",
+        "summary": "No measurable gain over E",
+        "items": [
+          [
+            "strength",
+            "Rows with sss_cci are slightly better than E (RMSE 23.7 vs 24.3). The model leans on salt_soda (15 % importance), not sss_cci (0.7 %)."
+          ],
+          [
+            "limit",
+            "Overall slightly worse than E: 45.8 vs 44.7 (41.7 vs 40.8 on GLODAP rows); rows without sss_cci 53.4 vs 51.8; 2020+ RMSE 48.5 vs 41.3."
+          ],
+          [
+            "limit",
+            "Not yet evaluated at stations (collocation cache lacks the product columns). sss_cci and sss_soda are empty in the store from 2024, so recent maps run on the anchor only."
+          ]
+        ]
+      }
+    ],
+    "shared_limitations_title": "Limitations shared by every run",
+    "shared_limitations": [
+      "Intervals are too narrow. The nominal 80 % q10–q90 interval covers 69–75 % of held-out observations in every run; coastal and Southern Ocean rows of the in-situ models drop to 64–68 %.",
+      "Coastal water is 3× harder. Rows with bottom depth < 500 m have RMSE 45–47 (in-situ models) vs 15–20 offshore; with gridded salinity the coastal RMSE is 75–95.",
+      "Fresh water and high latitudes. Below salinity 30 the in-situ models reach RMSE 73–78; ≥ 60° is the worst latitude band for every model.",
+      "Period effects. 2000–2009 and the 1980s carry the largest errors in all runs; 1985–1994 is the easiest period.",
+      "Gridded salinity dominates map error. Moving from in-situ to gridded salinity roughly doubles RMSE for every model, and no feature-engineering change so far (stacked vs multi-product) closes that gap."
+    ],
+    "heldout_title": "Held-out comparison on identical rows",
+    "heldout_intro": "Every observation is predicted only by members that never saw it: the test block by all 42 members, every other row by the 7 members of the split that held it out for validation (median across members). For the in-situ models the stacked variant swaps in the gridded salinity stack (CCI → SODA → multi-obs), which is what those models see when producing maps. That variant, not the in-situ one, is the fair comparison with E and F.",
+    "heldout_loc_note": "Hover or click a bar, a chip or a point to highlight that group. Points are a sample of 6,000 distinct sampling locations.",
+    "map_title": "Where each model errs",
+    "map_intro": "Held-out residuals binned to 5° cells (cells with ≥ 5 rows). Use the difference view to see where one variant beats another: blue cells mean the chosen variant has lower RMSE than the reference.",
+    "salinity_title": "Sensitivity to the salinity input",
+    "salinity_intro": "The validation runner re-predicts each row after replacing salinity with a gridded product, on the same rows. For the in-situ models this measures the error the maps inherit; for E and F the model was trained on the stack, so the stacked bar is its native input and the in-situ bar is the mismatch. Regions follow the validation definitions: coastal means bottom depth < 500 m, and the latitude split is at |lat| = 60°.",
+    "salinity_region_note": "Hover or click a region (bar, chip or map point) to highlight it.",
+    "salinity_delta_title": "Added error vs size of the salinity mismatch (test block)",
+    "salinity_delta_note": "RMSE with the product minus RMSE with in-situ salinity, binned by |S_product − S_reference|. The reference is in-situ salinity for C and D but the stack for E and F, so for E and F the stacked product has no mismatch; pick another product to compare them. A model that is robust to salinity errors stays low on the right.",
+    "stations_title": "Independent time-series stations",
+    "stations_intro": "Surface bottles from 20 stations, predicted with gridded T/S (what the maps see) and with the in-situ T/S. Station evaluation exists for C, D and E. F has not been evaluated yet: the cached station collocations in data/time_series/ lack the sss_cci and salt_soda columns, so evaluate_stations.py --stage evaluate fails until the stations are re-collocated.",
+    "station_location_note": "Click a station on the map or in the table to plot its time series below.",
+    "testblock_title": "Test-block scores & uncertainty",
+    "testblock_intro": "Scores from ensemble_test_metrics.json (mean of members). Rows differ between run families, so compare within A, within B/C (identical rows) and within D/E/F (identical rows). Deep keeps rows with bottom depth ≥ 300 m.",
+    "member_note": "Each dot is one of the 42 members, coloured by run, grouped by the split that trained it. The ensemble value is the line.",
+    "variance_note": "Mean variance across test rows, split into the data-split term and the tuning / near-optimal term (law of total variance), per quantile. Units (µmol kg⁻¹)².",
+    "ensemble_title": "Ensemble members & features",
+    "ensemble_intro": "For the near-optimal runs (C–F): CatBoost feature importance of the residual model (mean over members), how often each feature is dropped by the selected members, and the spread of selected hyperparameters. The independent tuning runs did not store per-member trial metadata.",
+    "rashomon_size_note": "Trials within 2 % of the best inner-CV loss. A small set means the split had few equally good models to pick diverse members from.",
+    "footer": "Sources: models/<run>/ensemble_test_metrics.json, validation/{predictions.parquet, scores.csv, salinity_penalty.csv}, stations/{scores.csv, predictions.parquet}, models/*.json, feature_importance/summary.csv. Held-out predictions use median aggregation (validation.yaml); the test-block table uses the saved mean aggregation. Basins are coarse boxes: Mediterranean 30–46° N, 5.5° W–37° E; Southern Ocean south of 35° S; Arctic/subpolar N north of 60° N; Indian 20–120° E north of 35° S and south of 30° N; Atlantic 70° W–20° E; Pacific otherwise.",
+    "tab_overview": "Overview",
+    "tab_heldout": "Held-out comparison",
+    "tab_map": "Error map",
+    "tab_salinity": "Salinity sensitivity",
+    "tab_stations": "Stations",
+    "tab_testblock": "Test block & uncertainty",
+    "tab_ensemble": "Ensemble & features",
+    "lineage_parent_label": "Change from",
+    "lineage_origin_label": "Starting point",
+    "strength_label": "Strength",
+    "limit_label": "Limit",
+    "overall_scores_title": "Overall scores on these rows",
+    "region_title": "Region",
+    "station_locations_title": "Station locations",
+    "disagreement_title": "Where member disagreement comes from",
+    "feature_importance_title": "Feature importance (mean over 42 members)",
+    "dropped_features_title": "Members that drop each feature (of 42)",
+    "rashomon_size_title": "near-optimal set size per split",
+    "locator_title": "Where these groups are",
+    "locator_title_prefix": "Where these groups are: ",
+    "labels": {
+      "rows": "Rows",
+      "glodap_rows_all_6_variants": "GLODAP rows (all 6 variants)",
+      "incl_carimed": "Incl. CARIMED",
+      "group_by": "Group by",
+      "latitude_band_lat": "Latitude band (|lat|)",
+      "coastal_oceanic": "Coastal / oceanic",
+      "ocean_basin": "Ocean basin",
+      "in_situ_salinity": "In-situ salinity",
+      "5_year_period": "5-year period",
+      "sss_cci_available": "sss_cci available",
+      "test_block_vs_out_of_fold": "Test block vs out-of-fold",
+      "data_source": "Data source",
+      "metric": "Metric",
+      "rmse": "RMSE",
+      "mean_bias": "Mean bias",
+      "mae": "MAE",
+      "80_interval_coverage": "80 % interval coverage",
+      "interval_width_q90_q10": "Interval width (q90 − q10)",
+      "predicted_vs_observed_test_block_sample": "Predicted vs observed, test block sample",
+      "variant": "Variant",
+      "show": "Show",
+      "rmse_difference_vs_reference": "RMSE difference vs reference",
+      "reference": "Reference",
+      "model": "Model",
+      "test_block": "Test block",
+      "out_of_fold": "Out-of-fold",
+      "product": "Product",
+      "stacked": "stacked",
+      "salt_soda": "salt_soda",
+      "sss_cci": "sss_cci",
+      "sss_multiobs": "sss_multiobs",
+      "80_coverage": "80 % coverage",
+      "crps": "CRPS",
+      "station": "Station",
+      "salinity_temperature": "Salinity / temperature",
+      "gridded": "Gridded",
+      "in_situ": "In situ",
+      "band_q10_q90": "Band (q10–q90)",
+      "subset": "Subset",
+      "all": "All",
+      "deep_300_m": "Deep (≥ 300 m)",
+      "member_score": "Member score",
+      "hyperparameter": "Hyperparameter",
+      "learning_rate": "learning_rate",
+      "depth": "depth",
+      "l2_leaf_reg": "l2_leaf_reg",
+      "random_strength": "random_strength",
+      "refit_iterations": "refit iterations",
+      "c_in_situ_s": "C · in-situ S",
+      "c_gridded_s": "C · gridded S",
+      "d_in_situ_s": "D · in-situ S",
+      "d_gridded_s": "D · gridded S",
+      "e_stacked_native": "E · stacked (native)",
+      "f_multi_product_native": "F · multi-product (native)",
+      "nominal_0_80": "nominal 0.80",
+      "observed_ta_mol_kg": "Observed TA (µmol kg⁻¹)",
+      "predicted_q50": "Predicted q50",
+      "rmse_mol_kg": "RMSE (µmol kg⁻¹)",
+      "s_product_s_in_situ": "|S product − S in situ|",
+      "added_rmse_mol_kg": "Added RMSE (µmol kg⁻¹)",
+      "ta_mol_kg": "TA (µmol kg⁻¹)",
+      "mean_variance_mol_kg": "Mean variance ((µmol kg⁻¹)²)",
+      "importance": "Importance (%)",
+      "members_of_42": "Members (of 42)",
+      "trials_in_rashomon_set": "Trials in near-optimal set",
+      "run": "Run",
+      "name_folder": "Name / folder",
+      "trained": "Trained",
+      "ensemble_design": "Ensemble design",
+      "training_data": "Training data",
+      "salinity_input": "Salinity input",
+      "test_rows": "Test rows",
+      "evaluated_on": "Evaluated on",
+      "gridded_t_s": "Gridded T/S",
+      "in_situ_t_s": "In-situ T/S",
+      "n": "n",
+      "validation": "validation",
+      "stations": "stations",
+      "test_block_only": "test block only",
+      "d_with_in_situ_salinity_point_use": "D with in-situ salinity (point use)",
+      "d_with_gridded_salinity_its_maps": "D with gridded salinity (its maps)",
+      "e_stacked_salinity_native": "E stacked salinity (native)",
+      "f_multi_product_native_82": "F multi-product (native)",
+      "native_stack": "native (stack)",
+      "in_situ_native": "in situ (native)",
+      "native_input": "native input",
+      "colour_saturates_at_50_mol_kg_hover_a_cell_for_the_exact_value": "Colour saturates at 50 µmol kg⁻¹; hover a cell for the exact value.",
+      "red_over_prediction_blue_under_prediction_colour_saturates_at_50_mol_kg": "Red: over-prediction, blue: under-prediction. Colour saturates at ±50 µmol kg⁻¹.",
+      "hpo_rashomon": "HPO / near-optimal",
+      "data_split": "data split",
+      "observed": "observed",
+      "glodap_1993_2022_rows": "GLODAP 1993–2022 rows",
+      "glodap_rows": "GLODAP rows",
+      "glodap_carimed_rows": "GLODAP + CARIMED rows",
+      "no_sss_cci": "no sss_cci",
+      "test_block_95": "test block",
+      "out_of_fold_96": "out-of-fold",
+      "rmse_97": "ΔRMSE",
+      "bias": "Bias",
+      "interval_width": "Interval width",
+      "r": "R²",
+      "80_cov": "80 % cov.",
+      "width": "Width",
+      "calib_mae": "Calib. MAE"
+    },
+    "runs": {
+      "A": {
+        "label": "Independent tuning · 1993–2022",
+        "design": "Per-replicate HPO (7 studies/split)",
+        "data": "GLODAPv2023, 1993–2022 only",
+        "salinity": "In situ"
+      },
+      "B": {
+        "label": "Independent tuning · full period",
+        "design": "Per-replicate HPO (7 studies/split)",
+        "data": "GLODAPv2023",
+        "salinity": "In situ"
+      },
+      "C": {
+        "label": "Near-optimal ensemble · GLODAP",
+        "design": "1 study/split, 7 near-optimal members",
+        "data": "GLODAPv2023",
+        "salinity": "In situ"
+      },
+      "D": {
+        "label": "Near-optimal ensemble · +CARIMED",
+        "design": "1 study/split, 7 near-optimal members",
+        "data": "GLODAPv2023 + CARIMED",
+        "salinity": "In situ"
+      },
+      "E": {
+        "label": "Gridded salinity stack",
+        "design": "1 study/split, 7 near-optimal members",
+        "data": "GLODAPv2023 + CARIMED",
+        "salinity": "Gridded stack (CCI → SODA → multiobs)"
+      },
+      "F": {
+        "label": "Stack + salinity predictors",
+        "design": "1 study/split, 7 near-optimal members",
+        "data": "GLODAPv2023 + CARIMED",
+        "salinity": "Gridded stack + sss_cci, salt_soda as features"
+      }
+    },
+    "scoreColumns": [
+      "Rows",
+      "RMSE",
+      "MAE",
+      "Mean bias",
+      "Median bias",
+      "80 % cov.",
+      "Width"
+    ],
+    "mapComparisonNote": "{variant} has lower RMSE than {reference} in {better} of {total} cells. Colour saturates at ±40 µmol kg⁻¹.",
+    "chartTemplates": {
+      "hover_1": "%{lat:.1f}°, %{lon:.1f}°<extra>",
+      "hover_2": "<b>{0}</b><br>%{x}: %{y:.{1}f} {2}<br>n = %{customdata[0]:,}<extra></extra>",
+      "hover_3": "observed %{x:.0f}<br>predicted %{y:.0f}<extra></extra>",
+      "hover_4": "%{lat}°, %{lon}°<br>",
+      "hover_5": "<b>%{fullData.name}</b><br>%{x}: RMSE %{y:.1f}<br>bias %{customdata[2]:.1f} · n = %{customdata[0]:,}<extra></extra>",
+      "hover_6": "<b>{0}</b> |ΔS| %{x}: +%{y:.1f} µmol kg⁻¹ (n = %{customdata})<extra></extra>",
+      "hover_7": "%{text}<extra></extra>",
+      "hover_8": "<b>{0}</b> q50 %{y:.0f}<extra></extra>",
+      "hover_9": "observed %{y:.0f}<extra></extra>",
+      "hover_10": "%{text}<br>%{y:.2f}<extra>",
+      "hover_11": "ensemble {0}: %{y:.2f}<extra></extra>",
+      "hover_12": "%{x}: split %{y:.1f}<extra></extra>",
+      "hover_13": "%{x}: HPO %{y:.1f}<extra></extra>",
+      "hover_14": "<b>{0}</b> %{y}: %{x:.1f} %<extra></extra>",
+      "hover_15": "<b>{0}</b> %{y}: dropped by %{x} of 42<extra></extra>",
+      "hover_16": "<b>{0}</b> %{x}: %{y} trials<extra></extra>",
+      "hover_17": "<b>{0}</b> %{y}<extra></extra>"
     }
   }
 }

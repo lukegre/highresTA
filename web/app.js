@@ -11,7 +11,7 @@ const app = {
     try {
       const [dataResp, contentResp] = await Promise.all([
         fetch('data.json'),
-        fetch('content.json')
+        fetch('content.json', { cache: 'no-store' })
       ]);
 
       if (!dataResp.ok || !contentResp.ok) throw new Error('Failed to fetch');
@@ -22,14 +22,13 @@ const app = {
       this.render();
       this.setupScrollSpy();
       this.setupAnimations();
-      this.setupThemeToggle();
     } catch (err) {
       console.error('Failed to load data:', err);
       const errorEl = document.getElementById('load-error');
       errorEl.innerHTML = `
         <strong>Could not load the page.</strong>
         <p>The app needs to be served over HTTP (file:// doesn't work with fetch):</p>
-        <p><code>cd /net/sea/work/gregorl/projects/highres_TA/web && python -m http.server 8000</code></p>
+        <p><code>cd web && python3 -m http.server 8000</code></p>
         <p>Then open <code>http://localhost:8000</code></p>
       `;
       errorEl.hidden = false;
@@ -48,7 +47,7 @@ const app = {
 
     // Brand
     const brand = document.getElementById('brand');
-    brand.textContent = this.content.site.short_title;
+    if (brand) brand.textContent = this.content.site.short_title;
 
     // Nav
     const nav = document.getElementById('nav');
@@ -86,10 +85,12 @@ const app = {
     resultsNotice.setAttribute('role', 'note');
     const currentResults = this.data.run.method === 'rashomon';
     const noticeTitle = document.createElement('strong');
-    noticeTitle.textContent = currentResults ? 'Displayed results · Rashomon ensemble' : 'Displayed results · earlier independent-HPO ensemble';
+    const copy = this.content.ui || {};
+    noticeTitle.textContent = currentResults ? copy.current_results_title : copy.historical_results_title;
     const noticeBody = document.createElement('p');
-    noticeBody.textContent = `Run: ${this.data.run.name} (${this.data.run.years.join('–')}). ` +
-      (currentResults ? 'The charts below use the completed Rashomon run.' : 'The methods below describe the current Rashomon design. All counts, scores and interactive charts still use this earlier run, which required SSH and used independent HPO searches. They do not evaluate the new method.');
+    const years = this.data.run.years.join('–');
+    noticeBody.textContent = (currentResults ? copy.current_results_body : copy.historical_results_body)
+      .replace('{run}', this.data.run.name).replace('{years}', years);
     const noticeContent = document.createElement('div');
     noticeContent.className = 'callout-content';
     noticeTitle.className = 'callout-title';
@@ -332,6 +333,7 @@ const app = {
 
   renderSplitExplorer(container, block, ctx) {
     const blocks = this.data.blocks;
+    const ui = this.content.ui;
 
     const explorer = document.createElement('div');
     explorer.className = 'split-explorer';
@@ -339,7 +341,7 @@ const app = {
     // Split selector
     const splitControl = document.createElement('div');
     splitControl.className = 'segmented-control';
-    splitControl.innerHTML = '<label>Split</label>';
+    splitControl.innerHTML = `<label>${ui.split_label}</label>`;
     for (let i = 1; i <= this.data.run.n_splits; i++) {
       const btn = document.createElement('button');
       btn.textContent = `${i}`;
@@ -362,7 +364,7 @@ const app = {
     // Inner fold selector
     const innerControl = document.createElement('div');
     innerControl.className = 'segmented-control';
-    innerControl.innerHTML = '<label>Inner fold</label>';
+    innerControl.innerHTML = `<label>${ui.inner_fold_label}</label>`;
     for (let i = 1; i <= blocks.length - 2; i++) {
       const btn = document.createElement('button');
       btn.textContent = `${i}`;
@@ -395,6 +397,7 @@ const app = {
   },
 
   updateSplitExplorer(split, innerFold, container) {
+    const ui = this.content.ui;
     container.dataset.split = split;
     container.dataset.innerFold = innerFold;
     const blocks = this.data.blocks;
@@ -418,13 +421,13 @@ const app = {
     blockRow.innerHTML = '';
     blocks.forEach((block, idx) => {
       const tile = document.createElement('div');
-      const role = idx === testBlock ? 'test' : idx === validationBlock ? 'validation' : 'train';
+      const role = idx === testBlock ? ui.test_role : idx === validationBlock ? ui.validation_role : ui.train_role;
       tile.className = `block-tile block-tile--${role}`;
       tile.innerHTML = `
-        <div class="block-label">Block ${idx}</div>
+        <div class="block-label">${ui.block} ${idx}</div>
         <div class="block-info">
-          <div>${this.formatInt(block.observations)} obs</div>
-          <div>${block.cruises} cruises</div>
+          <div>${this.formatInt(block.observations)} ${ui.observations}</div>
+          <div>${block.cruises} ${ui.cruises}</div>
         </div>
       `;
       blockRow.appendChild(tile);
@@ -451,11 +454,11 @@ const app = {
       const isHeldOut = (idx + 1) === innerFold;
       const tile = document.createElement('div');
       tile.className = `block-tile block-tile--train ${isHeldOut ? 'held-out' : 'fit'}`;
-      const role = isHeldOut ? 'held out for early stopping' : 'fit';
+      const role = isHeldOut ? ui.heldout_for_early_stopping : ui.fit_role;
       tile.innerHTML = `
-        <div class="block-label">Block ${block.block} <span class="role">${role}</span></div>
+        <div class="block-label">${ui.block} ${block.block} <span class="role">${role}</span></div>
         <div class="block-info">
-          <div>${this.formatInt(block.observations)} obs</div>
+          <div>${this.formatInt(block.observations)} ${ui.observations}</div>
         </div>
       `;
       innerBlockRow.appendChild(tile);
@@ -465,11 +468,13 @@ const app = {
     const summary = container.querySelector('#split-summary');
     const trainBlocks = blocks.filter((_, idx) => idx !== testBlock && idx !== validationBlock).map(b => b.block).join(', ');
     const trainObs = blocks.filter((_, idx) => idx !== testBlock && idx !== validationBlock).reduce((sum, b) => sum + b.observations, 0);
-    summary.textContent = `Split ${split} · trains on blocks ${trainBlocks} (${this.formatInt(trainObs)} obs) · validates on block ${validationBlock} · tests on block ${testBlock}`;
+    summary.textContent = ui.split_summary.replace('{split}', split).replace('{blocks}', trainBlocks)
+      .replace('{observations}', this.formatInt(trainObs)).replace('{validation}', validationBlock).replace('{test}', testBlock);
   },
 
   renderMemberGrid(container, block, ctx) {
     const members = this.data.members;
+    const ui = this.content.ui;
     const splits = this.data.run.n_splits;
     const replicates = this.data.run.n_replicates;
 
@@ -484,7 +489,7 @@ const app = {
     const legend = document.createElement('div');
     legend.className = 'rmse-legend';
     legend.innerHTML = `
-      <div class="legend-label">RMSE</div>
+      <div class="legend-label">${ui.member_detail.rmse}</div>
       <div class="legend-gradient">
         <div class="legend-tick" style="left: 0%">${minRmse.toFixed(1)}</div>
         <div class="legend-tick" style="left: 100%">${maxRmse.toFixed(1)}</div>
@@ -498,9 +503,9 @@ const app = {
     const stats = document.createElement('div');
     stats.className = 'member-summary-stats';
     stats.innerHTML = `
-      <div>Min RMSE: ${minRmse.toFixed(1)}</div>
-      <div>Median RMSE: ${medianRmse.toFixed(1)}</div>
-      <div>Max RMSE: ${maxRmse.toFixed(1)}</div>
+      <div>${ui.min_rmse.replace('{value}', minRmse.toFixed(1))}</div>
+      <div>${ui.median_rmse.replace('{value}', medianRmse.toFixed(1))}</div>
+      <div>${ui.max_rmse.replace('{value}', maxRmse.toFixed(1))}</div>
     `;
     gridContainer.appendChild(stats);
 
@@ -520,7 +525,7 @@ const app = {
     for (let r = 0; r < replicates; r++) {
       const cell = document.createElement('div');
       cell.className = 'grid-cell header';
-      cell.textContent = `Member ${r}`;
+      cell.textContent = ui.member_header.replace('{index}', r);
       headerRowTop.appendChild(cell);
     }
     gridContent.appendChild(headerRowTop);
@@ -716,31 +721,6 @@ const app = {
   formatInt(num) {
     // Swiss apostrophe thousands separator
     return Math.round(num).toString().replace(/\B(?=(\d{3})+(?!\d))/g, "'");
-  },
-
-  setupThemeToggle() {
-    const toggle = document.getElementById('theme-toggle');
-    const html = document.documentElement;
-
-    // Load saved theme
-    try {
-      const saved = localStorage.getItem('theme');
-      if (saved) html.setAttribute('data-theme', saved);
-    } catch (e) {
-      // localStorage may not be available
-    }
-
-    toggle.addEventListener('click', () => {
-      const current = html.getAttribute('data-theme');
-      const next = current === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
-
-      try {
-        localStorage.setItem('theme', next);
-      } catch (e) {
-        // localStorage may not be available
-      }
-    });
   },
 
   setupScrollSpy() {

@@ -1,0 +1,330 @@
+
+/* Tokens (light/dark) and shared primitives. Components use only these tokens and the .gv-* primitives.
+   theme = auto: prefers-color-scheme decides; light/dark: data-theme on <html> forces it. Start: the reference's :root. */
+:root {
+  --gv-sp: 8px;
+  --gv-radius: 8px;
+  --gv-font: system-ui, -apple-system, "Segoe UI", sans-serif;
+  --gv-card: #ffffff;
+  --gv-card-line: rgba(0, 0, 0, .08);
+  --gv-sidebar: #f3f4f6;
+  --gv-text: #1f2328;
+  --gv-muted: #6b7280;
+  --gv-accent: #2563eb;
+  --gv-danger: #d1242f;
+  --gv-rail: rgba(0, 0, 0, .16);
+  --gv-hover: rgba(127, 127, 127, .16);
+  --gv-shadow: 0 1px 3px rgba(0, 0, 0, .14), 0 1px 2px rgba(0, 0, 0, .08);
+  --gv-map-bg: #111418;
+  --gv-land: var(--gv-map-bg);   /* Land (vector) basemap: dark land, same as the background, in both themes */
+  --gv-water: var(--gv-map-bg);
+  color-scheme: light dark;
+}
+:root[data-theme="light"] { color-scheme: light; }
+:root[data-theme="dark"] { color-scheme: dark; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --gv-card: rgba(22, 27, 34, .92);
+    --gv-card-line: rgba(255, 255, 255, .08);
+    --gv-sidebar: #0d1117;
+    --gv-text: #e6edf3;
+    --gv-muted: #9aa4b2;
+    --gv-accent: #58a6ff;
+    --gv-rail: rgba(255, 255, 255, .22);
+    --gv-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+  }
+}
+:root[data-theme="dark"] {
+  --gv-card: rgba(22, 27, 34, .92);
+  --gv-card-line: rgba(255, 255, 255, .08);
+  --gv-sidebar: #0d1117;
+  --gv-text: #e6edf3;
+  --gv-muted: #9aa4b2;
+  --gv-accent: #58a6ff;
+  --gv-rail: rgba(255, 255, 255, .22);
+  --gv-shadow: 0 1px 3px rgba(0, 0, 0, .55);
+}
+
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { font: 13px/1.4 var(--gv-font); color: var(--gv-text); background: var(--gv-map-bg); overflow: hidden; }
+.gv-app input, .gv-app select, .gv-app button { font: inherit; color: inherit; accent-color: var(--gv-accent); }
+.gv-app button { cursor: pointer; }
+.gv-app :focus-visible { outline: 2px solid var(--gv-accent); outline-offset: 1px; }
+.gv-app select, .gv-app input[type=text], .gv-app input[type=number] {
+  box-sizing: border-box; padding: 3px 8px; border-radius: 6px; border: 1px solid var(--gv-card-line);
+  background: var(--gv-card); color: var(--gv-text); }
+.gv-app select option, .gv-app select optgroup { background: var(--gv-sidebar); color: var(--gv-text); }
+
+/* primitives */
+.gv-panel { padding: var(--gv-sp) 12px; border-radius: var(--gv-radius); background: var(--gv-card);
+  box-shadow: var(--gv-shadow); border: 1px solid var(--gv-card-line); }
+.gv-row { display: flex; align-items: center; gap: var(--gv-sp); }
+.gv-row > label { flex: none; color: var(--gv-muted); font-size: 12px; font-weight: 600; }
+.gv-btn { padding: 3px 10px; border-radius: 6px; border: 1px solid var(--gv-card-line); background: transparent; }
+.gv-btn:hover { background: var(--gv-hover); }
+.gv-iconbtn { flex: none; width: 24px; height: 24px; display: grid; place-items: center; padding: 0; border: 0;
+  border-radius: 6px; background: transparent; color: var(--gv-muted); }
+.gv-iconbtn:hover { background: var(--gv-hover); color: var(--gv-text); }
+.gv-iconbtn svg { width: 16px; height: 16px; }
+
+/* errors (core) */
+.gv-toast { position: absolute; z-index: 20; left: 50%; top: var(--gv-sp); transform: translateX(-50%);
+  width: min(560px, calc(100% - 2 * var(--gv-sp))); box-sizing: border-box; padding: 8px 10px; border-radius: 6px;
+  font-size: 12px; line-height: 1.4; border: 1px solid var(--gv-danger); background: var(--gv-card);
+  box-shadow: var(--gv-shadow); overflow-wrap: anywhere; cursor: pointer; }
+.gv-toast .msg { font-weight: 600; color: var(--gv-danger); }
+.gv-toast .hint { margin-top: 4px; }
+.gv-toast code { font-size: 11px; padding: 0 3px; border-radius: 3px; background: rgba(127, 127, 127, .2); }
+
+/* map chrome: OpenLayers controls in the card style; Light/Dark basemaps are CSS filters on one OSM source */
+.ol-zoom { top: var(--gv-sp); left: auto; right: var(--gv-sp); padding: 2px; border-radius: var(--gv-radius);
+  background: var(--gv-card); box-shadow: var(--gv-shadow); border: 1px solid var(--gv-card-line); }
+.ol-zoom button { width: 28px; height: 28px; margin: 0; border-radius: 6px; background: transparent;
+  color: var(--gv-text); font: 600 16px/1 var(--gv-font); }
+.ol-zoom button:hover, .ol-zoom button:focus { background: var(--gv-hover); color: var(--gv-text); }
+.ol-attribution, .ol-attribution.ol-uncollapsible, .ol-attribution.ol-collapsed {
+  bottom: var(--gv-sp); right: var(--gv-sp); border-radius: var(--gv-radius); background: var(--gv-card);
+  box-shadow: var(--gv-shadow); border: 1px solid var(--gv-card-line); font: 11px/1.4 var(--gv-font); color: var(--gv-muted); }
+.ol-attribution ul { margin: 0; padding: 2px 8px; color: var(--gv-muted); font-size: 11px; text-shadow: none; }
+.ol-attribution a { color: inherit; }
+.ol-attribution button { background: transparent; color: var(--gv-text); }
+.bm-light canvas { filter: grayscale(1) brightness(1.08) contrast(.9); }
+.bm-dark canvas { filter: invert(1) hue-rotate(180deg) grayscale(.85) brightness(.85) contrast(.9); }
+
+/* key/value table (kvTable in util.js): info-panel and var-attrs */
+.gv-kv { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.gv-kv th, .gv-kv td { padding: 3px 6px; text-align: left; vertical-align: top;
+  border-top: 1px solid var(--gv-card-line); overflow-wrap: anywhere; }
+.gv-kv th { width: 32%; font-weight: 600; color: var(--gv-muted); }
+.gv-kv td { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11.5px; }
+
+/* Slot grid. The assembler emits all slots (empty ones take no space) and sets data-sidebar and --gv-sb-width.
+   topbar spans the width; the sidebar sits left or right of the main column (map, overlays, bottom). */
+.gv-app { --gv-sb-w: var(--gv-sb-width, 320px); position: absolute; inset: 0; display: grid;
+  grid-template-columns: var(--gv-sb-w) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr);
+  grid-template-areas: "top top" "side main"; }
+.gv-app[data-sidebar="right"] { grid-template-columns: minmax(0, 1fr) var(--gv-sb-w); grid-template-areas: "top top" "main side"; }
+.gv-app[data-sidebar="none"] { grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "main"; }
+.gv-app.collapsed { --gv-sb-w: 40px; }
+/* a slot takes no space and draws no chrome without a visible child: empty, or all children `hidden` (a component can
+   hide its root, e.g. the timeline without a Horizontal dimension) */
+.gv-slot:empty, .gv-slot:not(:has(> :not([hidden]):not(.gv-group), > .gv-group > .gv-group-body > :not([hidden]))) { display: none !important; }
+/* a group (collapsible section, see core/app.js initGroups) hides itself when all its components are hidden */
+.gv-group:not(:has(> .gv-group-body > :not([hidden]))) { display: none; }
+/* the sidebar column goes with its slots (sidebar, sidebar-bottom): no visible component in them = layout as without a sidebar */
+.gv-sidebar:not(:has(> .gv-slot > :not([hidden]):not(.gv-group), > .gv-slot > .gv-group > .gv-group-body > :not([hidden]))) { display: none; }
+.gv-app:has(> .gv-sidebar:not(:has(> .gv-slot > :not([hidden]):not(.gv-group), > .gv-slot > .gv-group > .gv-group-body > :not([hidden])))) {
+  grid-template-columns: minmax(0, 1fr); grid-template-areas: "top" "main"; }
+
+.gv-topbar { grid-area: top; z-index: 10; display: flex; align-items: center; gap: var(--gv-sp);
+  box-sizing: border-box; padding: 4px var(--gv-sp); background: var(--gv-sidebar); border-bottom: 1px solid var(--gv-card-line); }
+
+.gv-sidebar { grid-area: side; position: relative; z-index: 6; display: flex; flex-direction: column; min-width: 0;
+  min-height: 0; overflow: hidden; box-sizing: border-box; background: var(--gv-sidebar);
+  border-right: 1px solid var(--gv-card-line); }
+.gv-app[data-sidebar="right"] .gv-sidebar { border-right: 0; border-left: 1px solid var(--gv-card-line); }
+.gv-sidebar > .gv-slot { box-sizing: border-box; padding: var(--gv-sp); display: flex; flex-direction: column; gap: var(--gv-sp); }
+.gv-sidebar > .gv-slot[data-slot="sidebar"] { flex: 1; min-height: 0; overflow: auto; }
+/* sidebar-bottom is pinned under the scrolling sidebar slot (D-44/D-46 "Global settings"), with its own scroll when tall */
+.gv-sidebar > .gv-slot[data-slot="sidebar-bottom"] { flex: none; max-height: 45%; overflow: auto; border-top: 1px solid var(--gv-card-line); }
+.gv-app[data-collapsible] .gv-sidebar { padding-top: 36px; }
+.gv-sbtoggle { position: absolute; top: 4px; right: var(--gv-sp); z-index: 2; width: 28px; height: 28px; display: grid;
+  place-items: center; padding: 0; border: 0; border-radius: 6px; background: transparent; color: var(--gv-muted); }
+.gv-app[data-sidebar="right"] .gv-sbtoggle { right: auto; left: var(--gv-sp); transform: scaleX(-1); }
+.gv-sbtoggle:hover { background: var(--gv-hover); color: var(--gv-text); }
+.gv-sbtoggle svg { width: 16px; height: 16px; }
+.gv-app.collapsed .gv-sbtoggle { right: 6px; }
+.gv-app[data-sidebar="right"].collapsed .gv-sbtoggle { left: 6px; right: auto; }
+.gv-app.collapsed .gv-sbtoggle svg { transform: rotate(180deg); }
+.gv-app.collapsed .gv-sidebar > .gv-slot { display: none; }
+/* resize handle on the sidebar's inner edge (core/app.js initSidebarResize); hidden while collapsed */
+.gv-sbresize { position: absolute; top: 0; bottom: 0; right: 0; width: 6px; z-index: 3; cursor: col-resize; touch-action: none; }
+.gv-app[data-sidebar="right"] .gv-sbresize { right: auto; left: 0; }
+.gv-sbresize:hover, .gv-app.resizing .gv-sbresize { background: var(--gv-card-line); }
+.gv-app.collapsed .gv-sbresize { display: none; }
+.gv-app.resizing { cursor: col-resize; user-select: none; }
+.gv-spine { display: none; }
+.gv-app.collapsed .gv-spine { display: block; position: absolute; top: 44px; bottom: 12px; left: 0; right: 0; padding: 0;
+  border: 0; background: transparent; color: var(--gv-muted); font: inherit; overflow: hidden; }
+.gv-spine span { position: absolute; left: 50%; top: 0; transform: translateX(-50%) rotate(180deg); writing-mode: vertical-rl;
+  white-space: nowrap; font-size: 15px; line-height: 1; max-height: 100%; overflow: hidden; text-overflow: ellipsis; }
+
+/* collapsible group: header button (icon, title, chevron) + body; the state class is on the section */
+.gv-group { display: flex; flex-direction: column; gap: var(--gv-sp); }
+.gv-group-head { display: flex; align-items: center; gap: 6px; width: 100%; padding: 2px 0; border: 0; background: transparent;
+  color: var(--gv-muted); font: inherit; font-size: 12px; font-weight: 600; text-align: left; cursor: pointer; }
+.gv-group-head:hover { color: var(--gv-text); }
+.gv-group-icon { display: inline-grid; place-items: center; }
+.gv-group-icon svg, .gv-group-chev svg { width: 14px; height: 14px; }
+.gv-group-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-group-chev { display: inline-grid; place-items: center; transition: transform .15s; }
+.gv-group.collapsed .gv-group-chev { transform: rotate(-90deg); }
+.gv-group-body { display: flex; flex-direction: column; gap: var(--gv-sp); }
+/* settings in a group: label left, control right, every select / number input 45 % of its box so they line up
+   (the box = content + 2 x 12px padding + 2 x 1px border); boxes toned down halfway towards the sidebar (selects
+   stay card-coloured), border kept */
+.gv-group-body > .gv-panel { background: color-mix(in srgb, var(--gv-card) 50%, var(--gv-sidebar)); }
+.gv-group-body .gv-row { justify-content: space-between; }
+.gv-group-body .gv-row > select, .gv-group-body .gv-row > input, .gv-group-body .gv-dim-roles select {
+  box-sizing: border-box; width: calc((100% + 26px) * .45); min-width: 0; flex: none; }
+
+.gv-main { grid-area: main; position: relative; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.gv-mapwrap { position: relative; flex: 1; min-height: 0; overflow: hidden; }
+#gv-map { position: absolute; inset: 0; background: var(--gv-map-bg); }
+.gv-slot[data-slot="bottom"] { position: relative; z-index: 4; box-sizing: border-box; padding: var(--gv-sp);
+  background: var(--gv-sidebar); border-top: 1px solid var(--gv-card-line); }
+
+/* overlays sit on the map and let clicks through except on their own content; the OL zoom (top right) and
+   attribution (bottom right) controls keep their corners, so the right-hand overlays start below / end above them */
+.gv-slot[data-slot^="overlay-"] { position: absolute; z-index: 5; display: flex; flex-direction: column; gap: var(--gv-sp);
+  max-width: calc(100% - 2 * var(--gv-sp)); pointer-events: none; }
+.gv-slot[data-slot^="overlay-"] > * { pointer-events: auto; }
+.gv-slot[data-slot="overlay-tl"] { top: var(--gv-sp); left: var(--gv-sp); align-items: flex-start; }
+.gv-slot[data-slot="overlay-tr"] { top: 80px; right: var(--gv-sp); align-items: flex-end; }
+.gv-slot[data-slot="overlay-bl"] { bottom: var(--gv-sp); left: var(--gv-sp); align-items: flex-start; }
+.gv-slot[data-slot="overlay-br"] { bottom: 40px; right: var(--gv-sp); align-items: flex-end; }
+
+/* component: info-panel */
+.gv-info-panel .ip-btn[aria-expanded="true"] { background: var(--gv-hover); color: var(--gv-text); }
+.gv-info-panel .ip-panel { box-sizing: border-box; padding: var(--gv-sp) 12px 12px; border-radius: var(--gv-radius);
+  background: var(--gv-card); box-shadow: var(--gv-shadow); border: 1px solid var(--gv-card-line); font-size: 12px; }
+.gv-info-panel[data-mode="popover"] .ip-panel { position: fixed; z-index: 12; width: min(520px, calc(100vw - 16px));
+  max-height: calc(100vh - 16px); overflow: auto; }
+.gv-info-panel[data-mode="inline"] .ip-panel { margin-top: var(--gv-sp); }
+.gv-info-panel h2 { margin: 8px 0 4px; font-size: 12px; font-weight: 600; color: var(--gv-muted);
+  text-transform: uppercase; letter-spacing: .04em; }
+.gv-info-panel h2:first-child { margin-top: 0; }
+
+/* component: variable-cards */
+.gv-variable-cards { display: flex; flex-direction: column; gap: var(--gv-sp); }
+.gv-variable-cards .vc-sec, .gv-variable-cards .vc-list { display: flex; flex-direction: column; gap: var(--gv-sp); }
+.gv-variable-cards .vc-hint { padding: 0 var(--gv-sp); font-size: 11px; color: var(--gv-muted); }
+.gv-variable-cards .vc-head { margin: 0; padding: 0 2px; font-size: 11px; font-weight: 600; letter-spacing: .06em;
+  text-transform: uppercase; color: var(--gv-muted); }
+.gv-variable-cards .vc-toggle { display: flex; align-items: center; gap: 4px; border: 0; background: none; text-align: left; }
+.gv-variable-cards .vc-toggle:hover { color: var(--gv-text); }
+.gv-variable-cards .vc-toggle .chev { width: 12px; height: 12px; transition: transform .15s; }
+.gv-variable-cards .vc-toggle[aria-expanded="false"] .chev { transform: rotate(-90deg); }
+.gv-variable-cards .vc-sec.drop-target { outline: 2px dashed var(--gv-accent); outline-offset: 2px; }
+
+.gv-variable-cards .vc-card { padding: 12px; border-radius: var(--gv-radius); background: var(--gv-card);
+  box-shadow: var(--gv-shadow); border: 1px solid var(--gv-card-line); cursor: pointer; }
+.gv-variable-cards .vc-card:hover { border-color: var(--gv-muted); }
+.gv-variable-cards .vc-card.active { border-color: var(--gv-accent); box-shadow: 0 0 0 1px var(--gv-accent), var(--gv-shadow); }
+.gv-variable-cards .vc-card.dragging { opacity: .45; }
+.gv-variable-cards .vc-card.drop-before { border-top: 3px solid var(--gv-accent); }
+.gv-variable-cards .vc-top { display: flex; align-items: flex-start; gap: var(--gv-sp); }
+.gv-variable-cards .vc-name { flex: 1; min-width: 0; font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.gv-variable-cards .vc-meta { margin-top: 2px; font-size: 12px; color: var(--gv-muted); }
+.gv-variable-cards .vc-longname { margin-top: 2px; font-size: 12px; overflow-wrap: anywhere; }
+.gv-variable-cards .vc-handle { cursor: grab; touch-action: none; }
+.gv-variable-cards .vc-info[aria-expanded="true"], .gv-variable-cards .vc-gear[aria-expanded="true"] {
+  background: var(--gv-hover); color: var(--gv-text); }
+/* eye, settings and remove only on selected cards */
+.gv-variable-cards .vc-gear, .gv-variable-cards .vc-visibility, .gv-variable-cards .vc-remove { display: none; }
+.gv-variable-cards .vc-card.selected .vc-gear, .gv-variable-cards .vc-card.selected .vc-visibility,
+.gv-variable-cards .vc-card.selected .vc-remove { display: grid; }
+.gv-variable-cards .vc-settings { display: none; flex-direction: column; gap: var(--gv-sp); margin-top: var(--gv-sp);
+  font-size: 12px; color: var(--gv-muted); cursor: default; }
+.gv-variable-cards .vc-card.selected.open .vc-settings { display: flex; }
+
+/* component: dim-roles */
+.gv-dim-roles .dr-title { margin-bottom: 4px; font-size: 12px; font-weight: 600; color: var(--gv-muted); }
+.gv-dim-roles .dr-row { display: flex; align-items: center; justify-content: space-between; gap: var(--gv-sp); margin-bottom: 4px; }
+.gv-dim-roles .dr-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-dim-roles select { width: 104px; flex: none; }
+
+/* component: basemap */
+.gv-topbar .gv-basemap { padding: 4px 8px; }  /* compact in the top bar; full panel padding elsewhere */
+.gv-basemap select { min-width: 84px; }
+
+/* component: cmap-sources */
+.gv-cmap-sources .cs-title { font-size: 12px; font-weight: 600; color: var(--gv-muted); margin-bottom: 4px; }
+.gv-cmap-sources .cs-boxes { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; }
+.gv-cmap-sources .cs-check { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.gv-cmap-sources .cs-check input:disabled + span { opacity: .5; }
+
+/* component: style-controls */
+.gv-style-controls.sc-panel { min-width: 240px; display: flex; flex-direction: column; gap: var(--gv-sp); }
+.gv-style-controls.sc-controls { display: flex; flex-direction: column; gap: 6px; font-size: 12px; }
+.gv-style-controls .sc-row { display: flex; align-items: center; gap: var(--gv-sp); flex-wrap: wrap; }
+.gv-style-controls .sc-row > label { flex: none; min-width: 64px; color: var(--gv-muted); font-weight: 600; }
+.gv-style-controls .sc-row select { flex: 1; min-width: 0; }
+.gv-style-controls .sc-row input[type=number] { flex: 1; min-width: 0; width: 70px; }
+.gv-style-controls .sc-row input[type=range] { flex: 1; min-width: 0; }
+.gv-style-controls .sc-row input.bad { border-color: var(--gv-danger); }
+.gv-style-controls .sc-sep { color: var(--gv-muted); }
+.gv-style-controls .sc-cmbar { flex: none; width: 56px; height: 12px; border-radius: 3px; border: 1px solid var(--gv-card-line); }
+.gv-style-controls .sc-checks { gap: 4px 12px; padding-left: 72px; }
+.gv-style-controls .sc-check { display: inline-flex; align-items: center; gap: 4px; cursor: pointer; }
+.gv-style-controls .sc-check input:disabled + span { opacity: .5; }
+.gv-style-controls .sc-note { color: var(--gv-muted); font-size: 12px; }
+.gv-style-controls button:disabled { opacity: .5; cursor: default; }
+
+/* component: legend */
+.gv-legend { font-size: 11px; font-variant-numeric: tabular-nums; }
+.gv-legend.lg-overlay { display: flex; gap: var(--gv-sp); }
+.gv-legend.lg-overlay.lg-horizontal { flex-direction: column; }
+.gv-legend.lg-overlay.lg-vertical { flex-direction: row; align-items: flex-end; }
+.gv-legend .lg-title { font-weight: 600; margin-bottom: 4px; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.gv-legend .lg-bar { border-radius: 3px; border: 1px solid var(--gv-card-line); }
+.gv-legend .lg-ticks { position: relative; }
+.gv-legend .lg-tick { position: absolute; background: var(--gv-muted); }
+.gv-legend .lg-label { position: absolute; white-space: nowrap; color: var(--gv-muted); }
+.gv-legend .lg-units { color: var(--gv-muted); }
+/* horizontal: bar on top, ticks below, units right-aligned underneath */
+.gv-legend .lg-horizontal .lg-bar { width: 220px; max-width: 100%; height: 12px; box-sizing: border-box; }
+.gv-legend .lg-horizontal .lg-ticks { width: 220px; max-width: 100%; height: 18px; }
+.gv-legend .lg-horizontal .lg-tick { top: 0; width: 1px; height: 4px; }
+.gv-legend .lg-horizontal .lg-label { top: 5px; }
+.gv-legend .lg-horizontal .lg-units { text-align: right; }
+.gv-legend.lg-card .lg-horizontal .lg-bar, .gv-legend.lg-card .lg-horizontal .lg-ticks { width: 100%; }
+/* vertical: bar left, ticks right, units below */
+.gv-legend .lg-vertical .lg-body { display: flex; }
+.gv-legend .lg-vertical .lg-bar { width: 12px; height: 160px; box-sizing: border-box; }
+.gv-legend .lg-vertical .lg-ticks { width: 44px; height: 160px; }
+.gv-legend .lg-vertical .lg-tick { left: 0; height: 1px; width: 4px; }
+.gv-legend .lg-vertical .lg-label { left: 7px; }
+.gv-legend .lg-cat { display: flex; align-items: center; gap: 6px; }
+.gv-legend .lg-swatch { flex: none; width: 12px; height: 12px; border-radius: 2px; border: 1px solid var(--gv-card-line); }
+
+/* component: var-attrs */
+.gv-var-attrs .va-pop { position: fixed; z-index: 30; width: min(420px, calc(100vw - 16px)); max-height: calc(100vh - 16px);
+  overflow: auto; box-sizing: border-box; font-size: 12px; }
+.gv-var-attrs .va-title { margin: 0 0 6px; font-size: 13px; font-weight: 600; overflow-wrap: anywhere; }
+.gv-var-attrs .va-none { color: var(--gv-muted); }
+
+/* component: timeline */
+.gv-timeline { display: flex; align-items: flex-start; gap: var(--gv-sp); height: 68px; box-sizing: border-box;
+  padding: 4px 12px; user-select: none; flex: 1; min-width: 0; }
+.gv-timeline .tl-ctl { display: flex; align-items: center; gap: 2px; padding-top: 22px; flex: none; }
+.gv-timeline .tl-ctl .gv-iconbtn { width: 28px; height: 28px; }
+.gv-timeline .tl-name { flex: none; padding-top: 30px; font-size: 12px; color: var(--gv-muted); }
+.gv-timeline .tl-track { position: relative; flex: 1; min-width: 0; height: 60px; margin: 0 20px; touch-action: none; cursor: pointer; }
+.gv-timeline .tl-rail { position: absolute; left: 0; right: 0; top: 30px; height: 4px; border-radius: 2px; background: var(--gv-rail); }
+.gv-timeline .tl-mark { position: absolute; width: 1px; background: var(--gv-muted); opacity: .8; }
+.gv-timeline .tl-mark.minor { top: 38px; height: 4px; opacity: .5; }
+.gv-timeline .tl-mark.major { top: 38px; height: 7px; }
+.gv-timeline .tl-label { position: absolute; top: 46px; transform: translateX(-50%); font-size: 11px; line-height: 14px;
+  white-space: nowrap; color: var(--gv-muted); font-variant-numeric: tabular-nums; }
+.gv-timeline .tl-handle { position: absolute; top: 24px; width: 16px; height: 16px; margin-left: -8px; border-radius: 50%;
+  background: var(--gv-accent); border: 2px solid var(--gv-card); box-sizing: border-box; box-shadow: 0 0 0 1px var(--gv-accent); cursor: grab; }
+.gv-timeline .tl-bubble { position: absolute; top: 0; transform: translateX(-50%); padding: 1px 8px; border-radius: 6px;
+  background: var(--gv-accent); color: #fff; font-size: 12px; line-height: 18px; white-space: nowrap;
+  font-variant-numeric: tabular-nums; pointer-events: none; }
+
+/* component: dim-sliders */
+.gv-dim-sliders { display: flex; gap: var(--gv-sp); }
+.gv-dim-sliders[data-orientation="horizontal"] { flex-direction: column; }
+.gv-dim-sliders .ds-item { display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 12px; }
+.gv-dim-sliders[data-orientation="horizontal"] .ds-item { flex-direction: row; }
+.gv-dim-sliders .ds-lab { color: var(--gv-muted); }
+.gv-dim-sliders .ds-val { font-variant-numeric: tabular-nums; }
+.gv-dim-sliders input[type=range] { margin: 0; }
+.gv-dim-sliders[data-orientation="vertical"] input[type=range] { writing-mode: vertical-lr; width: 16px; height: 96px; }
+.gv-dim-sliders[data-orientation="horizontal"] input[type=range] { width: 140px; flex: 1; min-width: 60px; }
+
+/* component: readout */
+.gv-readout { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 180px; }
+.gv-readout .ro-coord { color: var(--gv-muted); font-size: 11px; white-space: pre; }

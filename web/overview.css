@@ -1,0 +1,33 @@
+* { box-sizing: border-box; }
+body { margin: 0; color: var(--site-ink); background: var(--site-paper); font: 16px/1.54 var(--site-body); }
+main, footer { width: min(90%, var(--site-width)); margin: auto; }
+main { padding: clamp(32px, 4.5vw, 68px) 0 42px; }
+h1, h2 { font-family: var(--site-display); font-weight: 500; line-height: 1.06; }
+h1 { max-width: 1000px; margin: 0; font-size: clamp(42px, 6.1vw, 86px); letter-spacing: -.052em; }
+h2 { margin: 10px 0; font-size: clamp(26px, 2.3vw, 36px); letter-spacing: -.026em; }
+a { color: var(--site-teal); text-underline-offset: 4px; }
+.lead { max-width: 72ch; font-size: clamp(17px, 1.55vw, 21px); margin: 18px 0 28px; }
+.facts { margin: 0 0 30px; padding: 12px 0; display: flex; flex-wrap: wrap; gap: 8px 36px; border-block: 1px solid var(--site-line); }
+.facts div { display: flex; align-items: baseline; gap: 7px; }
+.facts dt { font-weight: 750; }
+.facts dd { margin: 0; color: var(--site-muted); }
+.maps, .routes { display: grid; gap: clamp(18px, 2.4vw, 34px); }
+.maps { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+figure { margin: 0; }
+.atlas { width: 100%; height: auto; aspect-ratio: 1.88; object-fit: fill; border: 1px solid var(--site-line); display: block; }
+.map-meta { margin: 11px 0; display: flex; align-items: center; gap: 8px; color: var(--site-muted); font-size: 13px; }
+.point { height: 7px; width: 7px; border-radius: 50%; background: #135b67; }
+.gradient { width: 45px; height: 7px; background: linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725); }
+figcaption p:last-child, article p { margin: 0; color: var(--site-muted); }
+.routes { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); grid-template-columns: repeat(3, 1fr); }
+.routes h2 { font-size: clamp(24px, 2vw, 30px); }
+.routes a { text-decoration: none; }
+.routes a:hover { text-decoration: underline; }
+footer { border-top: 1px solid var(--site-line); display: flex; justify-content: space-between; padding-block: 16px; font-size: 14px; }
+@media (max-width: 700px) {
+  .maps, .routes { grid-template-columns: 1fr; gap: 26px; }
+  .facts { gap: 5px 15px; }
+}
+.section-nav { position: sticky; top: 0; z-index: 2; }
+.section-nav a[aria-current] { color: var(--site-ink); text-decoration: underline; text-underline-offset: 5px; }
+main > section { scroll-margin-top: 54px; }
