@@ -1,6 +1,6 @@
 import string
-from pathlib import Path
 from functools import lru_cache
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -32,7 +32,9 @@ def open_processed_zarr(fname: str) -> xr.Dataset:
 def open_bottomdepth(fname: str) -> xr.DataArray:
     """Open bathymetry as positive depth (m), the convention used in the training data."""
     da = xr.open_dataset(fname)
-    da = da.rename({k: v for k, v in {"latitude": "lat", "longitude": "lon"}.items() if k in da.dims})
+    da = da.rename({
+        k: v for k, v in {"latitude": "lat", "longitude": "lon"}.items() if k in da.dims
+    })
     da = da[list(da.data_vars)[0]]
     if da.attrs.get("positive") == "up":
         da = -da
@@ -64,7 +66,9 @@ def _open_gridded_data(fname_processed: str, fname_bathymetry: str) -> xr.Datase
 def open_gridded_data(config: dict[str, Any] | None = None) -> xr.Dataset:
     """Gridded predictors plus bathymetry and spherical coordinates, with paths from ``config``."""
     paths = (config or load_config())["paths"]
-    return _open_gridded_data(_location(paths["gridded_predictors"]), _location(paths["bathymetry"]))
+    return _open_gridded_data(
+        _location(paths["gridded_predictors"]), _location(paths["bathymetry"])
+    )
 
 
 def open_inference_data(
@@ -196,11 +200,19 @@ def calc_variance_decomposition(da: xr.DataArray) -> xr.Dataset:
         "var_split": split_variance,
         "var_replicate": replicate_variance,
         "q90_minus_q10": quantile_range_variance,
-    })
+    }).to_array(dim="variance_type")
+
+    standard_dev = (
+        variance_components
+        .sel(variance_type=["total_var", "q90_minus_q10"])
+        .sum(dim="variance_type")
+        .pipe(lambda x: np.sqrt(x))
+    )
 
     return xr.Dataset({
         "talk_median": talk_median,
-        "talk_var": variance_components.to_array(dim="variance_type"),
+        "talk_var": variance_components,
+        "talk_total_stdev": standard_dev,
     })
 
 
@@ -217,7 +229,12 @@ def create_output_template(
     to the time steps that ``dates`` select. An existing store is kept (to resume or add dates) after
     checking that it covers every requested time step on the same grid.
     """
-    times = pd.DatetimeIndex(features.time.sel(time=list(dates), method="nearest").values).unique().sort_values()
+    times = (
+        pd
+        .DatetimeIndex(features.time.sel(time=list(dates), method="nearest").values)
+        .unique()
+        .sort_values()
+    )
 
     if Path(zarr_fname_out).exists():
         existing = xr.open_zarr(zarr_fname_out)
@@ -229,7 +246,9 @@ def create_output_template(
             )
         for dim in ("lat", "lon"):
             if not np.array_equal(existing[dim].values, features[dim].values):
-                raise ValueError(f"{zarr_fname_out} has a different {dim} grid than the inference data.")
+                raise ValueError(
+                    f"{zarr_fname_out} has a different {dim} grid than the inference data."
+                )
         logger.info(f"Using existing output store {zarr_fname_out}")
         return
 
