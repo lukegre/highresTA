@@ -9,7 +9,7 @@
   <link rel="stylesheet" href="overview.css">
   <script>
     // Preserve bookmarks to the methods explorer that previously occupied this page.
-    if (['#data', '#preprocessing', '#splits', '#model', '#ensemble', '#uncertainty', '#limitations'].includes(location.hash)) {
+    if (['#data', '#preprocessing', '#splits', '#model', '#uncertainty', '#calibration'].includes(location.hash)) {
       location.replace('method.html' + location.search + location.hash);
     }
   </script>
@@ -20,6 +20,7 @@
   <main>
     <section id="goal"></section>
     <section id="maps" class="maps"></section>
+    <section id="approach" class="model"></section>
     <section id="explore-project" class="routes"></section>
   </main>
   <footer></footer>

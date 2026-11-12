@@ -64,7 +64,7 @@ df = df.dropna(subset=non_null)
 funnel.append(("Required values present: " + ", ".join(non_null), len(df), df.expocode.nunique()))
 df = df.drop_duplicates(subset=dc["coordinate_columns"], keep="first")
 funnel.append(("Duplicate coordinates removed", len(df), df.expocode.nunique()))
-meta = df.reset_index(drop=True)[["expocode", "time", "lat", "lon", "depth", "talk"]]
+meta = df.reset_index(drop=True)[["expocode", "time", "lat", "lon", "depth", "bottomdepth", "talk"]]  # bottomdepth: positive metres
 print("final rows", len(df))
 
 # ---- blocks / splits ----------------------------------------------------------
@@ -110,7 +110,7 @@ for name in names:
         "cruises_train": j["cruise_counts"]["train"],
         "test": {"rmse": round(t["median_rmse"], 2), "mae": round(t["median_mae"], 2),
                  "crps": round(t["quantile_crps"], 3), "coverage80": round(t["interval_80pct_coverage"], 3)},
-        "validation": {"rmse": round(v["median_rmse"], 2)},
+        "validation": {"rmse": round(v["median_rmse"], 2), "mae": round(v["median_mae"], 2)},
     })
     p = pd.read_parquet(RUN / "predictions" / f"{name}_test.parquet").sort_values("row_id")
     preds.append(p[[f"q_{q}" for q in QS]].to_numpy())
@@ -143,14 +143,25 @@ spread = {"member_std": binned(member_std), "scaled_iqr": binned(iq), "combined"
 # error / coverage as ensemble grows (random subsets, 30 draws)
 grow = []
 for n in sorted({n for n in [1, 2, 3, 5, 7, 10, 14, 21, 28, 42, len(members)] if n <= len(members)}):
-    r, c, w = [], [], []
+    r, a, c, w = [], [], [], []
     for _ in range(30):
         sel = rng.choice(len(members), n, replace=False)
         e = P[sel].mean(0)
         r.append(np.sqrt(np.mean((y - e[:, 1]) ** 2)))
+        a.append(np.mean(np.abs(y - e[:, 1])))
         c.append(np.mean((y >= e[:, 0]) & (y <= e[:, 2])))
         w.append(np.mean(e[:, 2] - e[:, 0]))
-    grow.append({"n": n, "rmse": round(float(np.mean(r)), 2), "coverage80": round(float(np.mean(c)), 3), "width80": round(float(np.mean(w)), 2)})
+    grow.append({"n": n, "rmse": round(float(np.mean(r)), 2), "mae": round(float(np.mean(a)), 2), "coverage80": round(float(np.mean(c)), 3), "width80": round(float(np.mean(w)), 2)})
+
+# scores on the full test set; open ocean = bottom depth > 500 m and |lat| < 60
+def scores(mask):
+    e = ens[mask, 1] - y[mask]
+    return {"n": int(mask.sum()), "mae": round(float(np.abs(e).mean()), 2), "rmse": round(float(np.sqrt((e**2).mean())), 2),
+            "bias": round(float(e.mean()), 2), "r2": round(float(1 - (e**2).sum() / ((y[mask] - y[mask].mean()) ** 2).sum()), 3),
+            "coverage80": round(float(np.mean((y[mask] >= ens[mask, 0]) & (y[mask] <= ens[mask, 2]))), 3)}
+test_meta = meta.iloc[rows]
+open_ocean = ((test_meta.bottomdepth > 500) & (test_meta.lat.abs() < 60)).to_numpy()
+regional_scores = {"all": scores(np.ones(len(y), dtype=bool)), "open_ocean": scores(open_ocean)}
 
 calib = {"quantile": QS, "empirical": [round(float(np.mean(y <= ens[:, i])), 3) for i in range(3)]}
 
@@ -174,6 +185,10 @@ for position, i in enumerate(pick):
     if baseline is not None:
         sample[-1].update(salinity=round(float(df.salinity.iloc[rows[i]]), 4), baseline=round(float(baseline[position]), 2))
 
+# distinct sample locations with their block, for the train/test map (block 0 = test)
+loc = meta.assign(lat=meta.lat.round(1), lon=(((meta.lon + 180) % 360) - 180).round(1))[["lat", "lon", "block"]].drop_duplicates()
+split_map = {"lat": loc.lat.tolist(), "lon": loc.lon.tolist(), "block": loc.block.astype(int).tolist()}
+
 out = {
     "run": {"name": RUN.name, "n_members": len(members), "n_splits": int(sp_idx.max()), "n_replicates": max(m["replicate"] for m in members) + 1,
             "method": "independent_hpo" if legacy else "rashomon",
@@ -183,9 +198,11 @@ out = {
     "blocks": blocks_info,
     "members": members,
     "ensemble_scores": metrics["scores"],
+    "regional_scores": regional_scores,
     "variance_means": metrics["variance_means"],
     "spread_vs_error": spread, "growth": grow, "calibration": calib,
     "test_sample": sample, "member_order": names,
+    "split_map": split_map,
 }
 args.output.write_text(json.dumps(out, separators=(",", ":")))
 print("wrote", args.output, round(args.output.stat().st_size / 1e6, 2), "MB")

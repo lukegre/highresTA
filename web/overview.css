@@ -3,7 +3,7 @@ body { margin: 0; color: var(--site-ink); background: var(--site-paper); font: 1
 main, footer { width: min(90%, var(--site-width)); margin: auto; }
 main { padding: clamp(32px, 4.5vw, 68px) 0 42px; }
 h1, h2 { font-family: var(--site-display); font-weight: 500; line-height: 1.06; }
-h1 { max-width: 1000px; margin: 0; font-size: clamp(42px, 6.1vw, 86px); letter-spacing: -.052em; }
+h1 { max-width: 1000px; margin: 0; font-size: clamp(34px, 4.4vw, 60px); letter-spacing: -.04em; }
 h2 { margin: 10px 0; font-size: clamp(26px, 2.3vw, 36px); letter-spacing: -.026em; }
 a { color: var(--site-teal); text-underline-offset: 4px; }
 .lead { max-width: 72ch; font-size: clamp(17px, 1.55vw, 21px); margin: 18px 0 28px; }
@@ -17,15 +17,22 @@ figure { margin: 0; }
 .atlas { width: 100%; height: auto; aspect-ratio: 1.88; object-fit: fill; border: 1px solid var(--site-line); display: block; }
 .map-meta { margin: 11px 0; display: flex; align-items: center; gap: 8px; color: var(--site-muted); font-size: 13px; }
 .point { height: 7px; width: 7px; border-radius: 50%; background: var(--site-teal); }
-.gradient { width: 45px; height: 7px; background: linear-gradient(90deg,#440154,#3b528b,#21918c,#5ec962,#fde725); }
+.point.carimed { background: #c8553d; }
+.map-meta span:not(:first-child) { margin-left: 12px; }
+.gradient { width: 45px; height: 7px; background: linear-gradient(90deg,#313695,#74add1,#e0f3f8,#ffffbf,#fdae61,#d73027,#a50026); }
 figcaption p:last-child, article p { margin: 0; color: var(--site-muted); }
 .routes { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); grid-template-columns: repeat(3, 1fr); }
 .routes h2 { font-size: clamp(24px, 2vw, 30px); }
 .routes a { text-decoration: none; }
 .routes a:hover { text-decoration: underline; }
+.model { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); }
+.model .lead { margin: 8px 0 16px; }
+.equation { margin: 0 0 20px; padding: 14px 18px; background: var(--site-surface); border: 1px solid var(--site-line); font: 500 clamp(15px, 1.4vw, 19px)/1.5 var(--site-display); overflow-x: auto; white-space: nowrap; }
+.model-parts { display: grid; grid-template-columns: repeat(4, 1fr); gap: clamp(16px, 2vw, 28px); margin-bottom: 16px; }
+.model-parts h3 { margin: 0 0 4px; font-size: 16px; }
 footer { border-top: 1px solid var(--site-line); display: flex; justify-content: space-between; padding-block: 16px; font-size: 14px; }
 @media (max-width: 700px) {
-  .maps, .routes { grid-template-columns: 1fr; gap: 26px; }
+  .maps, .routes, .model-parts { grid-template-columns: 1fr; gap: 26px; }
   .facts { gap: 5px 15px; }
 }
 .section-nav { position: sticky; top: 0; z-index: 2; }

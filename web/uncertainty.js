@@ -54,28 +54,6 @@ function percentile(arr, p) {
   return sorted[Math.max(0, idx)];
 }
 
-/** Calculate standard deviation (population) */
-function std(arr) {
-  if (arr.length <= 1) return 0;
-  const mean = arr.reduce((a, b) => a + b, 0) / arr.length;
-  const sq = arr.map(x => (x - mean) ** 2).reduce((a, b) => a + b, 0);
-  return Math.sqrt(sq / arr.length); // population std
-}
-
-/** Request animation frame throttled redraw */
-function rafThrottle(fn) {
-  let pending = false;
-  return () => {
-    if (!pending) {
-      pending = true;
-      requestAnimationFrame(() => {
-        fn();
-        pending = false;
-      });
-    }
-  };
-}
-
 /** Generate nice (1-2-5) tick positions inside [min, max] */
 function niceTicks(min, max, targetCount = 5) {
   if (!(max > min)) return [];
@@ -149,108 +127,106 @@ function renderAxisTicks(svg, scale, min, max, isVertical, isX, margin, plotW, p
   });
 }
 
-/** Setup ResizeObserver for SVG auto-sizing and redraw */
+/** Mean and population variance */
+function mean(arr) {
+  return arr.reduce((s, v) => s + v, 0) / arr.length;
+}
+
+function variance(arr) {
+  const m = mean(arr);
+  return mean(arr.map((v) => (v - m) ** 2));
+}
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Create an SVG element with attributes and optional text */
+function el(name, attrs, text) {
+  const node = document.createElementNS(SVG_NS, name);
+  Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+/** Redraw an SVG on every container resize and return a manual redraw.
+    A hidden container (e.g. a closed <details>) is skipped and drawn once it gets a size. */
 function setupSVGResize(container, svg, renderFn) {
-  const observer = new ResizeObserver(() => {
-    const w = container.clientWidth || 400;
-    const h = container.clientHeight || 300;
-    if (w > 0 && h > 0) {
-      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      renderFn(w, h);
-    }
-  });
-  observer.observe(container);
-  // Trigger initial render
-  setTimeout(() => {
-    const w = container.clientWidth || 400;
-    const h = container.clientHeight || 300;
-    if (w > 0 && h > 0) {
-      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      renderFn(w, h);
-    }
-  }, 0);
+  const redraw = () => {
+    const w = container.clientWidth;
+    const h = container.clientHeight;
+    if (!w || !h) return;
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    renderFn(w, h);
+  };
+  new ResizeObserver(redraw).observe(container);
+  return redraw;
 }
 
 // ============================================================================
 // Data computations
 // ============================================================================
 
-/** Compute ensemble stats for selected members */
-function computeEnsembleStats(testSample, memberIndices) {
-  const n = memberIndices.length;
-  if (n === 0) return null;
+// Q90 - Q10 of a normal distribution spans 2 x 1.2816 sigma
+const QUANTILE_WIDTH_PER_SIGMA = 2.563;
 
-  const q1 = testSample.pred.map(p => p[0]); // q0.1
-  const q2 = testSample.pred.map(p => p[1]); // q0.5 (median)
-  const q3 = testSample.pred.map(p => p[2]); // q0.9
+// The three terms of the total uncertainty, in stacking order
+const TERMS = [
+  { key: 'split', field: 'splitVar', uiKey: 'term_split', fallback: 'Data split' },
+  { key: 'member', field: 'memberVar', uiKey: 'term_member', fallback: 'Member (HPO + seed)' },
+  { key: 'quantile', field: 'quantVar', uiKey: 'term_quantile', fallback: 'Quantile width' },
+];
 
-  // Ensemble: mean of the selected members' quantiles
-  const ensQ1 = memberIndices.reduce((s, i) => s + q1[i], 0) / n;
-  const ensQ2 = memberIndices.reduce((s, i) => s + q2[i], 0) / n;
-  const ensQ3 = memberIndices.reduce((s, i) => s + q3[i], 0) / n;
+/** Ensemble statistics of one sample for the selected members.
+    sigma = sqrt(splitVar + memberVar + quantVar): the first two decompose the variance of the
+    members' medians (law of total variance, as decompose_variance in quantile_ensemble.py),
+    the last is the ensemble Q10-Q90 width expressed as a standard deviation. */
+function computeEnsembleStats(sample, memberIndices, members) {
+  const q1 = sample.pred.map((p) => p[0]);
+  const q2 = sample.pred.map((p) => p[1]);
+  const q3 = sample.pred.map((p) => p[2]);
+  const pick = (q) => mean(memberIndices.map((i) => q[i]));
+  const ensQ1 = pick(q1);
+  const ensQ2 = pick(q2);
+  const ensQ3 = pick(q3);
 
-  // Member spread: std of selected members' medians
-  const medians = memberIndices.map(i => q2[i]);
-  const spread = std(medians);
-
-  // Coverage: is observed in [Q10, Q90]?
-  const observed = testSample.observed;
-  const covered = observed >= ensQ1 && observed <= ensQ3 ? 1 : 0;
-
-  // Width of Q10–Q90
-  const width = ensQ3 - ensQ1;
-
-  // Error of ensemble median vs observed
-  const error = Math.abs(ensQ2 - observed);
-  const rmse = error; // For single sample, use absolute error
+  const mediansBySplit = new Map();
+  memberIndices.forEach((i) => {
+    const split = members[i].split;
+    if (!mediansBySplit.has(split)) mediansBySplit.set(split, []);
+    mediansBySplit.get(split).push(q2[i]);
+  });
+  const groups = [...mediansBySplit.values()];
+  const splitVar = variance(groups.map(mean));
+  const memberVar = mean(groups.map(variance));
+  const quantVar = ((ensQ3 - ensQ1) / QUANTILE_WIDTH_PER_SIGMA) ** 2;
 
   return {
-    observed,
+    observed: sample.observed,
     ensQ1,
     ensQ2,
     ensQ3,
-    spread,
-    width,
-    covered,
-    error,
-    medians,
+    spread: Math.sqrt(variance(memberIndices.map((i) => q2[i]))),
+    splitVar,
+    memberVar,
+    quantVar,
+    sigma: Math.sqrt(splitVar + memberVar + quantVar),
+    width: ensQ3 - ensQ1,
+    covered: sample.observed >= ensQ1 && sample.observed <= ensQ3 ? 1 : 0,
+    error: Math.abs(ensQ2 - sample.observed),
     q1,
     q2,
     q3,
   };
 }
 
-/** Compute batch statistics over test samples */
-function computeBatchStats(testSample, memberIndices) {
-  if (memberIndices.length === 0) return null;
-
-  let rmse = 0,
-    coverage = 0,
-    totalWidth = 0;
-  const spreads = [];
-  const errors = [];
-
-  for (const sample of testSample) {
-    const stats = computeEnsembleStats(sample, memberIndices);
-    rmse += stats.error * stats.error;
-    coverage += stats.covered;
-    totalWidth += stats.width;
-    spreads.push(stats.spread);
-    errors.push(stats.error);
-  }
-
-  rmse = Math.sqrt(rmse / testSample.length);
-  coverage = coverage / testSample.length;
-  const meanWidth = totalWidth / testSample.length;
-  const meanSpread = spreads.reduce((a, b) => a + b, 0) / spreads.length;
-
+/** Headline scores over per-sample stats */
+function summarize(rows) {
+  const avg = (f) => mean(rows.map(f));
   return {
-    rmse,
-    coverage,
-    meanWidth,
-    meanSpread,
-    spreads,
-    errors,
+    mae: avg((r) => r.error),
+    rmse: Math.sqrt(avg((r) => r.error ** 2)),
+    coverage: avg((r) => r.covered),
+    width: avg((r) => r.width),
+    sigma: avg((r) => r.sigma),
   };
 }
 
@@ -259,49 +235,52 @@ function computeBatchStats(testSample, memberIndices) {
 // ============================================================================
 
 window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
-  const { data, content, tpl, md, rdylbu } = ctx;
+  const { data, content, md } = ctx;
   const { explorer } = content;
   const ui = content.ui;
   const labels = explorer.labels;
-  const { members, test_sample, variance_means } = data;
+  const { members, test_sample } = data;
   const nSplits = data.run.n_splits;
   const nPerSplit = data.run.n_replicates;
+  const copy = (key, fallback) => ui[key] || fallback;
 
   // === State ===
-  let selectedMembers = new Set(Array.from({ length: members.length }, (_, i) => i)); // All selected
-  let selectedSampleIdx = 0; // Start with first sample
-  let randomN = 10; // For random preset
+  let selectedMembers = new Set(members.map((_, i) => i));
+  let selectedSampleIdx = 0;
+  let randomN = 10;
   let currentPreset = 'all';
+  let rows = []; // per-sample stats for the current member selection
+  let colours = []; // per-sample colour (by sigma_total)
+  let colourRange = { min: 0, max: 1 };
 
-  // Find initial sample (max spread in first 100)
-  {
-    let maxSpread = -1;
-    for (let i = 0; i < Math.min(100, test_sample.length); i++) {
-      const stats = computeEnsembleStats(test_sample[i], Array.from(selectedMembers));
-      if (stats.spread > maxSpread) {
-        maxSpread = stats.spread;
-        selectedSampleIdx = i;
-      }
-    }
+  function recompute() {
+    const indices = Array.from(selectedMembers);
+    rows = test_sample.map((s) => computeEnsembleStats(s, indices, members));
+    const sigmas = rows.map((r) => r.sigma);
+    colourRange = { min: percentile(sigmas, 0.05), max: percentile(sigmas, 0.95) };
+    const span = colourRange.max - colourRange.min || 1;
+    colours = sigmas.map((v) => getRdylbuColor(clamp((v - colourRange.min) / span, 0, 1)));
   }
 
-  // === Helper: render member grid ===
+  // === Member grid ===
   function updateMemberGrid() {
     const gridContainer = host.querySelector('.ux-member-grid');
-    if (!gridContainer) return;
-
-    // Clear and rebuild
     gridContainer.innerHTML = '';
 
+    // Corner + caption: the number in each cell is that member's test MAE
+    const corner = document.createElement('div');
+    corner.className = 'ux-member-header ux-member-corner';
+    corner.textContent = copy('member_cell_unit', 'MAE');
+    corner.title = 'Test MAE of each member (µmol/kg)';
+    corner.style.gridColumn = 1;
+    corner.style.gridRow = 1;
+    gridContainer.appendChild(corner);
+
     // Column headers: member index within a split
-    const colHeaders = document.createElement('div');
-    colHeaders.style.gridColumn = `2 / span ${nPerSplit}`;
-    colHeaders.style.gridRow = '1';
-    colHeaders.style.display = 'contents';
     for (let col = 0; col < nPerSplit; col++) {
       const h = document.createElement('div');
       h.className = 'ux-member-header';
-      h.textContent = col.toString();
+      h.textContent = `Model ${col}`;
       h.style.gridColumn = 2 + col;
       h.style.gridRow = 1;
       h.setAttribute('aria-label', `Member index ${col}`);
@@ -313,7 +292,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     for (let row = 0; row < nSplits; row++) {
       const h = document.createElement('div');
       h.className = 'ux-member-header';
-      h.textContent = (row + 1).toString();
+      h.textContent = `Split ${row + 1}`;
       h.style.gridColumn = 1;
       h.style.gridRow = row + 2;
       h.setAttribute('aria-label', `Split ${row + 1}`);
@@ -324,16 +303,17 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     // Member cells
     for (let split = 1; split <= nSplits; split++) {
       for (let rep = 0; rep < nPerSplit; rep++) {
-        const memberIdx = members.findIndex(m => m.split === split && m.replicate === rep);
+        const memberIdx = members.findIndex((m) => m.split === split && m.replicate === rep);
         if (memberIdx < 0) continue;
         const cell = document.createElement('button');
         cell.className = 'ux-member-cell';
-        cell.textContent = memberIdx.toString();
+        const m = members[memberIdx];
+        cell.textContent = fmt(m.test.mae, 1);
+        cell.title = `Split ${split} · model ${rep}\nTrial ${m.trial_number}, loss rank ${m.loss_rank}\nDropped: ${m.dropped_features.join(', ') || 'none'}\nTest MAE ${fmt(m.test.mae, 1)} µmol/kg · 80 % coverage ${fmt(m.test.coverage80 * 100, 0)} %`;
         cell.setAttribute('aria-pressed', selectedMembers.has(memberIdx) ? 'true' : 'false');
         cell.setAttribute('aria-label', `Split ${split}, member index ${rep}`);
         cell.style.gridColumn = rep + 2;
         cell.style.gridRow = split + 1;
-
         cell.addEventListener('click', () => toggleMember(memberIdx));
         gridContainer.appendChild(cell);
       }
@@ -349,35 +329,31 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     updateSelection();
   }
 
-  function toggleSplit(split) {
-    const indices = members.flatMap((m, i) => m.split === split ? [i] : []);
-    const allSelected = indices.every(i => selectedMembers.has(i));
-
+  function toggleGroup(indices) {
+    const allSelected = indices.every((i) => selectedMembers.has(i));
     if (allSelected && selectedMembers.size > indices.length) {
-      indices.forEach(i => selectedMembers.delete(i));
+      indices.forEach((i) => selectedMembers.delete(i));
     } else {
-      indices.forEach(i => selectedMembers.add(i));
+      indices.forEach((i) => selectedMembers.add(i));
     }
     updateSelection();
   }
 
-  function toggleReplicate(rep) {
-    const indices = members.flatMap((m, i) => m.replicate === rep ? [i] : []);
-    const allSelected = indices.every(i => selectedMembers.has(i));
-
-    if (allSelected && selectedMembers.size > indices.length) {
-      indices.forEach(i => selectedMembers.delete(i));
-    } else {
-      indices.forEach(i => selectedMembers.add(i));
-    }
-    updateSelection();
-  }
+  const toggleSplit = (split) => toggleGroup(members.flatMap((m, i) => (m.split === split ? [i] : [])));
+  const toggleReplicate = (rep) => toggleGroup(members.flatMap((m, i) => (m.replicate === rep ? [i] : [])));
 
   function updateSelection() {
+    recompute();
     updateMemberGrid();
     updateMetrics();
-    updateScatter();
-    updateMap();
+    updateColorbar();
+    redrawSelection();
+  }
+
+  /** Everything that shows the selected sample */
+  function redrawSelection() {
+    redrawScatter();
+    redrawMap();
     updateInspector();
     updateLiveRegion();
   }
@@ -388,419 +364,172 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     selectedMembers.clear();
 
     if (presetId === 'all') {
-      for (let i = 0; i < members.length; i++) selectedMembers.add(i);
+      members.forEach((_, i) => selectedMembers.add(i));
     } else if (presetId === 'one-split') {
       const split = (parseInt(currentPreset.split) || 1);
       members.forEach((member, i) => { if (member.split === split) selectedMembers.add(i); });
-      // Next call: cycle to next split
     } else if (presetId === 'one-replicate') {
       const rep = (parseInt(currentPreset.replicate) || 0);
       members.forEach((member, i) => { if (member.replicate === rep) selectedMembers.add(i); });
     } else if (presetId === 'random') {
       const rng = new SeededRandom(42);
-      const indices = Array.from({ length: members.length }, (_, i) => i)
+      members.map((_, i) => i)
         .sort(() => rng.next() - 0.5)
-        .slice(0, randomN);
-      indices.forEach(i => selectedMembers.add(i));
+        .slice(0, randomN)
+        .forEach((i) => selectedMembers.add(i));
     } else if (presetId === 'single') {
-      const single = parseInt(currentPreset.single) || 0;
-      selectedMembers.add(single);
+      selectedMembers.add(parseInt(currentPreset.single) || 0);
     }
 
     updateSelection();
   }
 
   // === Metrics ===
+  const tiles = [
+    { key: 'mae', label: copy('metric_mae', 'MAE'), unit: 'µmol/kg', value: (s) => fmt(s.mae, 2), sub: (s) => `RMSE ${fmt(s.rmse, 2)}` },
+    { key: 'coverage', label: labels.coverage, unit: '%', value: (s) => fmt(s.coverage * 100, 1) },
+    { key: 'sigma', label: copy('metric_sigma', 'Mean total uncertainty'), unit: 'µmol/kg', value: (s) => fmt(s.sigma, 2) },
+  ];
+
   function updateMetrics() {
-    const stats = computeBatchStats(test_sample, Array.from(selectedMembers));
-    if (!stats) return;
-
-    const tiles = [
-      { selector: '.ux-rmse', value: fmt(stats.rmse, 2), unit: 'µmol/kg' },
-      {
-        selector: '.ux-coverage',
-        value: fmt(stats.coverage * 100, 1),
-        unit: '%',
-      },
-      { selector: '.ux-width', value: fmt(stats.meanWidth, 2), unit: 'µmol/kg' },
-      { selector: '.ux-spread', value: fmt(stats.meanSpread, 2), unit: 'µmol/kg' },
-    ];
-
-    tiles.forEach(({ selector, value, unit }) => {
-      const elem = host.querySelector(selector);
-      if (elem) {
-        const valElem = elem.querySelector('.ux-metric-value');
-        const unitElem = elem.querySelector('.ux-metric-unit');
-        if (valElem) valElem.textContent = value;
-        if (unitElem) unitElem.textContent = unit;
-      }
+    const stats = summarize(rows);
+    tiles.forEach((tile) => {
+      const elem = host.querySelector(`[data-metric="${tile.key}"]`);
+      elem.querySelector('.ux-metric-value').innerHTML = `${tile.value(stats)}<span class="ux-metric-unit">${tile.unit}</span>`;
+      if (tile.sub) elem.querySelector('.ux-metric-sub').textContent = tile.sub(stats);
     });
+    host.querySelector('.ux-selection-label').textContent = ui.member_count.replace('{count}', selectedMembers.size);
+  }
 
-    const label = host.querySelector('.ux-selection-label');
-    if (label) label.textContent = ui.member_count.replace('{count}', selectedMembers.size);
+  function updateColorbar() {
+    const { min, max } = colourRange;
+    const ramp = Array.from({ length: 11 }, (_, i) => `<div style="flex:1;background:${getRdylbuColor(i / 10)}"></div>`).join('');
+    host.querySelector('.ux-colorbar').innerHTML = `
+      <div class="ux-colorbar-label">${copy('sigma_color', 'Total uncertainty σ_total (µmol/kg)')}</div>
+      <div class="ux-colorbar-ramp">${ramp}</div>
+      <div class="ux-colorbar-tick"><span>${fmt(min, 2)}</span><span>${fmt((min + max) / 2, 2)}</span><span>${fmt(max, 2)}</span></div>`;
+  }
+
+  // === Markers shared by scatter and map ===
+  /** Draw all samples (xy(i) gives [x, y]); the selected one last, enlarged with a contrasting ring */
+  function drawMarkers(svg, xy, radius) {
+    const marker = (i, r, extra = '') => {
+      const [x, y] = xy(i);
+      const circle = el('circle', { cx: x, cy: y, r, fill: colours[i], class: `ux-point ${extra}` });
+      circle.addEventListener('click', () => selectSample(i));
+      circle.addEventListener('mouseenter', (e) => showTooltip(e, i));
+      circle.addEventListener('mouseleave', hideTooltip);
+      return circle;
+    };
+    rows.forEach((_, i) => {
+      if (i !== selectedSampleIdx) svg.appendChild(marker(i, radius));
+    });
+    const [x, y] = xy(selectedSampleIdx);
+    svg.appendChild(el('circle', { cx: x, cy: y, r: radius + 6, class: 'ux-point-halo' }));
+    svg.appendChild(marker(selectedSampleIdx, radius + 3, 'ux-point-selected'));
   }
 
   // === Scatter plot ===
-  function updateScatter() {
-    const container = host.querySelector('.ux-scatter-wrapper');
-    const svg = host.querySelector('.ux-scatter-svg');
-    if (!svg || !container) return;
+  function drawScatter(width, height) {
+    const svg = scatterSvg;
+    const margin = { top: 12, right: 16, bottom: 46, left: 56 };
+    const plotW = width - margin.left - margin.right;
+    const plotH = height - margin.top - margin.bottom;
 
-    // Compute spreads for all samples
-    const spreads = test_sample.map(s =>
-      computeEnsembleStats(s, Array.from(selectedMembers)).spread
-    );
+    // same range on both axes so the dashed line is 1:1
+    const values = test_sample.map((s) => s.observed).concat(rows.map((r) => r.ensQ2));
+    const pad = (Math.max(...values) - Math.min(...values)) * 0.05;
+    const axisMin = Math.min(...values) - pad;
+    const axisMax = Math.max(...values) + pad;
+    const xScale = (v) => margin.left + ((v - axisMin) / (axisMax - axisMin)) * plotW;
+    const yScale = (v) => margin.top + (1 - (v - axisMin) / (axisMax - axisMin)) * plotH;
+    const muted = getCSSVar('--text-muted');
+    const border = getCSSVar('--border');
 
-    // Color scale: 5th-95th percentile
-    const pMin = percentile(spreads, 0.05);
-    const pMax = percentile(spreads, 0.95);
-    const spreadRange = pMax - pMin || 1;
+    svg.innerHTML = '';
+    const ticks = niceTicks(axisMin, axisMax, 5);
+    ticks.forEach((t) => {
+      svg.appendChild(el('line', { x1: xScale(t), x2: xScale(t), y1: margin.top, y2: margin.top + plotH, stroke: border, 'stroke-width': 0.5, opacity: 0.5 }));
+      svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: yScale(t), y2: yScale(t), stroke: border, 'stroke-width': 0.5, opacity: 0.5 }));
+    });
+    svg.appendChild(el('line', { x1: xScale(axisMin), y1: yScale(axisMin), x2: xScale(axisMax), y2: yScale(axisMax), stroke: border, 'stroke-width': 1.5, 'stroke-dasharray': '4,4' }));
+    svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: margin.top + plotH, y2: margin.top + plotH, stroke: muted }));
+    svg.appendChild(el('line', { x1: margin.left, x2: margin.left, y1: margin.top, y2: margin.top + plotH, stroke: muted }));
+    renderAxisTicks(svg, xScale, axisMin, axisMax, false, true, margin, plotW, plotH, ticks);
+    renderAxisTicks(svg, yScale, axisMin, axisMax, true, false, margin, plotW, plotH, ticks);
+    svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 8, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, ui.scatter_x));
+    svg.appendChild(el('text', {
+      x: 12, y: margin.top + plotH / 2, 'text-anchor': 'middle', 'font-size': 11, fill: muted,
+      transform: `rotate(-90 12 ${margin.top + plotH / 2})`,
+    }, ui.scatter_y));
 
-    const renderScatter = (width, height) => {
-      const margin = { top: 20, right: 20, bottom: 50, left: 60 };
-      const plotW = width - margin.left - margin.right;
-      const plotH = height - margin.top - margin.bottom;
-
-      // Data range - find both observed and predicted
-      const observed = test_sample.map(s => s.observed);
-      const predicted = test_sample.map(s => {
-        const stats = computeEnsembleStats(s, Array.from(selectedMembers));
-        return stats.ensQ2;
-      });
-      const allValues = [...observed, ...predicted];
-      let axisMin = Math.min(...allValues);
-      let axisMax = Math.max(...allValues);
-      const axisPad = (axisMax - axisMin) * 0.05;
-      axisMin -= axisPad;
-      axisMax += axisPad;
-
-      // Scale functions (same range on both axes for 1:1 line)
-      const xScale = (val) => margin.left + ((val - axisMin) / (axisMax - axisMin)) * plotW;
-      const yScale = (val) => margin.top + (1 - (val - axisMin) / (axisMax - axisMin)) * plotH;
-
-      // Build SVG
-      svg.innerHTML = '';
-
-      // Grid lines
-      const ticks = niceTicks(axisMin, axisMax, 5);
-      ticks.forEach((tick) => {
-        const x = xScale(tick);
-        const y = yScale(tick);
-        // Vertical grid
-        const vLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        vLine.setAttribute('x1', x);
-        vLine.setAttribute('x2', x);
-        vLine.setAttribute('y1', margin.top);
-        vLine.setAttribute('y2', margin.top + plotH);
-        vLine.setAttribute('stroke', getCSSVar('--border'));
-        vLine.setAttribute('stroke-width', '0.5');
-        vLine.setAttribute('opacity', '0.5');
-        svg.appendChild(vLine);
-
-        // Horizontal grid
-        const hLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        hLine.setAttribute('x1', margin.left);
-        hLine.setAttribute('x2', margin.left + plotW);
-        hLine.setAttribute('y1', y);
-        hLine.setAttribute('y2', y);
-        hLine.setAttribute('stroke', getCSSVar('--border'));
-        hLine.setAttribute('stroke-width', '0.5');
-        hLine.setAttribute('opacity', '0.5');
-        svg.appendChild(hLine);
-      });
-
-      // 1:1 line
-      const line1x1 = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      line1x1.setAttribute('x1', xScale(axisMin));
-      line1x1.setAttribute('y1', yScale(axisMin));
-      line1x1.setAttribute('x2', xScale(axisMax));
-      line1x1.setAttribute('y2', yScale(axisMax));
-      line1x1.setAttribute('stroke', getCSSVar('--border'));
-      line1x1.setAttribute('stroke-width', '1.5');
-      line1x1.setAttribute('stroke-dasharray', '4,4');
-      svg.appendChild(line1x1);
-
-      // Axes
-      const axisX = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      axisX.setAttribute('x1', margin.left);
-      axisX.setAttribute('x2', margin.left + plotW);
-      axisX.setAttribute('y1', margin.top + plotH);
-      axisX.setAttribute('y2', margin.top + plotH);
-      axisX.setAttribute('stroke', getCSSVar('--text-muted'));
-      axisX.setAttribute('stroke-width', '1');
-      svg.appendChild(axisX);
-
-      const axisY = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      axisY.setAttribute('x1', margin.left);
-      axisY.setAttribute('x2', margin.left);
-      axisY.setAttribute('y1', margin.top);
-      axisY.setAttribute('y2', margin.top + plotH);
-      axisY.setAttribute('stroke', getCSSVar('--text-muted'));
-      axisY.setAttribute('stroke-width', '1');
-      svg.appendChild(axisY);
-
-      // Axis ticks and labels
-      renderAxisTicks(svg, xScale, axisMin, axisMax, false, true, margin, plotW, plotH, ticks);
-      renderAxisTicks(svg, yScale, axisMin, axisMax, true, false, margin, plotW, plotH, ticks);
-
-      // Axis labels
-      const xLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      xLabel.setAttribute('x', margin.left + plotW / 2);
-      xLabel.setAttribute('y', height - 8);
-      xLabel.setAttribute('text-anchor', 'middle');
-      xLabel.setAttribute('font-size', '11');
-      xLabel.setAttribute('fill', getCSSVar('--text-muted'));
-      xLabel.textContent = ui.scatter_x;
-      svg.appendChild(xLabel);
-
-      const yLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      yLabel.setAttribute('x', 12);
-      yLabel.setAttribute('y', margin.top + plotH / 2);
-      yLabel.setAttribute('text-anchor', 'middle');
-      yLabel.setAttribute('font-size', '11');
-      yLabel.setAttribute('fill', getCSSVar('--text-muted'));
-      yLabel.setAttribute('transform', `rotate(-90 12 ${margin.top + plotH / 2})`);
-      yLabel.textContent = ui.scatter_y;
-      svg.appendChild(yLabel);
-
-      // Points
-      test_sample.forEach((sample, idx) => {
-        const stats = computeEnsembleStats(sample, Array.from(selectedMembers));
-        const t = clamp((stats.spread - pMin) / spreadRange, 0, 1);
-        const color = getRdylbuColor(t, true); // reverse: low=blue, high=red
-
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', xScale(sample.observed));
-        circle.setAttribute('cy', yScale(stats.ensQ2));
-        circle.setAttribute('r', '3.5');
-        circle.setAttribute('fill', color);
-        circle.setAttribute('class', `ux-scatter-point ${selectedSampleIdx === idx ? 'selected' : ''}`);
-        circle.setAttribute('data-idx', idx);
-
-        circle.addEventListener('click', () => selectSample(idx));
-        circle.addEventListener('mouseenter', (e) => showTooltip(e, sample, stats));
-        circle.addEventListener('mouseleave', () => hideTooltip());
-
-        svg.appendChild(circle);
-      });
-
-      // Colorbar legend
-      const cbContainer = host.querySelector('.ux-colorbar');
-      if (cbContainer) {
-        cbContainer.innerHTML = '';
-
-        const label = document.createElement('div');
-        label.className = 'ux-colorbar-label';
-        label.textContent = ui.spread_color;
-        cbContainer.appendChild(label);
-
-        const ramp = document.createElement('div');
-        ramp.className = 'ux-colorbar-ramp';
-        for (let i = 0; i <= 10; i++) {
-          const segment = document.createElement('div');
-          segment.style.flex = '1';
-          segment.style.background = getRdylbuColor(i / 10, true);
-          ramp.appendChild(segment);
-        }
-        cbContainer.appendChild(ramp);
-
-        const ticks = document.createElement('div');
-        ticks.className = 'ux-colorbar-tick';
-        ticks.innerHTML = `<span>${fmt(pMin, 2)}</span><span>${fmt((pMin + pMax) / 2, 2)}</span><span>${fmt(pMax, 2)}</span>`;
-        cbContainer.appendChild(ticks);
-      }
-    };
-
-    setupSVGResize(container, svg, renderScatter);
+    drawMarkers(svg, (i) => [xScale(test_sample[i].observed), yScale(rows[i].ensQ2)], 3.5);
   }
 
   // === Map ===
-  function updateMap() {
-    const mapContainer = host.querySelector('.ux-map-container');
-    const mapSvg = host.querySelector('.ux-map-svg');
-    if (!mapSvg || !mapContainer) return;
-
-    const spreads = test_sample.map(s =>
-      computeEnsembleStats(s, Array.from(selectedMembers)).spread
+  // The SVG fills a 2:1 container, so lon -180..180 / lat -90..90 map linearly to x / y.
+  function drawMap(width, height) {
+    mapSvg.innerHTML = '';
+    mapSvg.appendChild(el('image', { href: 'maps/land.png', x: 0, y: 0, width, height, preserveAspectRatio: 'none' }));
+    drawMarkers(
+      mapSvg,
+      (i) => [((test_sample[i].lon + 180) / 360) * width, ((90 - test_sample[i].lat) / 180) * height],
+      3.6,
     );
-    const pMin = percentile(spreads, 0.05);
-    const pMax = percentile(spreads, 0.95);
-    const spreadRange = pMax - pMin || 1;
-
-    const renderMap = (width, height) => {
-      mapSvg.innerHTML = '';
-
-      // Graticule lines
-      for (let lat = -90; lat <= 90; lat += 30) {
-        const y = ((lat + 90) / 180) * height;
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', '0');
-        line.setAttribute('x2', width);
-        line.setAttribute('y1', y);
-        line.setAttribute('y2', y);
-        line.setAttribute('class', 'ux-map-graticule');
-        mapSvg.appendChild(line);
-
-        // Latitude label
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', 8);
-        label.setAttribute('y', y + 3);
-        label.setAttribute('font-size', '9');
-        label.setAttribute('fill', getCSSVar('--text-muted'));
-        label.setAttribute('font-family', getCSSVar('--font-mono'));
-        label.textContent = lat + '°';
-        mapSvg.appendChild(label);
-      }
-
-      for (let lon = -180; lon <= 180; lon += 60) {
-        const x = ((lon + 180) / 360) * width;
-        const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        line.setAttribute('x1', x);
-        line.setAttribute('x2', x);
-        line.setAttribute('y1', '0');
-        line.setAttribute('y2', height);
-        line.setAttribute('class', 'ux-map-graticule');
-        mapSvg.appendChild(line);
-
-        // Longitude label
-        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-        label.setAttribute('x', x);
-        label.setAttribute('y', height - 3);
-        label.setAttribute('text-anchor', 'middle');
-        label.setAttribute('font-size', '9');
-        label.setAttribute('fill', getCSSVar('--text-muted'));
-        label.setAttribute('font-family', getCSSVar('--font-mono'));
-        label.textContent = lon + '°';
-        mapSvg.appendChild(label);
-      }
-
-      // Points
-      test_sample.forEach((sample, idx) => {
-        const stats = computeEnsembleStats(sample, Array.from(selectedMembers));
-        const t = clamp((stats.spread - pMin) / spreadRange, 0, 1);
-        const color = getRdylbuColor(t, true);
-
-        const x = ((sample.lon + 180) / 360) * width;
-        const y = ((sample.lat + 90) / 180) * height;
-
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', x);
-        circle.setAttribute('cy', y);
-        circle.setAttribute('r', '3');
-        circle.setAttribute('fill', color);
-        circle.setAttribute('class', `ux-map-point ${selectedSampleIdx === idx ? 'selected' : ''}`);
-        circle.setAttribute('data-idx', idx);
-
-        circle.addEventListener('click', () => selectSample(idx));
-        mapSvg.appendChild(circle);
-      });
-    };
-
-    setupSVGResize(mapContainer, mapSvg, renderMap);
   }
 
   // === Sample inspector ===
   function updateInspector() {
     const sample = test_sample[selectedSampleIdx];
-    const stats = computeEnsembleStats(sample, Array.from(selectedMembers));
+    const row = rows[selectedSampleIdx];
+    const cell = (label, value, cls = '') => `<div class="ux-insp-cell ${cls}"><span>${label}</span><b>${value}</b></div>`;
 
-    // Info section
-    const infoContainer = host.querySelector('.ux-sample-info');
-    if (infoContainer) {
-      infoContainer.innerHTML = `
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.cruise}</div>
-          <div class="ux-info-value">${sample.cruise}</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.date}</div>
-          <div class="ux-info-value">${sample.date}</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.position}</div>
-          <div class="ux-info-value">${fmt(sample.lat, 2)}°, ${fmt(sample.lon, 2)}°</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.depth}</div>
-          <div class="ux-info-value">${fmt(sample.depth, 1)} m</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.observed}</div>
-          <div class="ux-info-value">${fmt(sample.observed, 2)} µmol/kg</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.ensemble_median}</div>
-          <div class="ux-info-value">${fmt(stats.ensQ2, 2)} µmol/kg</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.error}</div>
-          <div class="ux-info-value">${fmt(stats.error, 2)} µmol/kg</div>
-        </div>
-        <div class="ux-info-group">
-          <div class="ux-info-label">${ui.member_spread}</div>
-          <div class="ux-info-value">${fmt(stats.spread, 2)} µmol/kg</div>
-        </div>
-      `;
-    }
+    host.querySelector('.ux-insp-line').textContent =
+      `${sample.cruise} · ${sample.date} · ${fmt(sample.lat, 2)}°, ${fmt(sample.lon, 2)}° · ${fmt(sample.depth, 0)} m`;
 
-    // Whisker plot
-    const whiskerSvg = host.querySelector('.ux-whisker-svg');
-    if (whiskerSvg) {
-      renderWhiskerPlot(whiskerSvg, sample, stats);
-    }
+    host.querySelector('.ux-insp-stats').innerHTML = [
+      cell(copy('inspector_observed', 'Observed'), fmt(sample.observed, 1)),
+      cell(copy('inspector_q50', 'Ensemble Q50'), fmt(row.ensQ2, 1)),
+      cell(copy('inspector_error', 'Error'), fmt(row.ensQ2 - sample.observed, 1)),
+      cell(copy('inspector_interval', 'Q10–Q90'), `${fmt(row.ensQ1, 0)}–${fmt(row.ensQ3, 0)}`),
+    ].join('');
 
-    // Variance summary
-    const summary = host.querySelector('.ux-variance-summary');
-    if (summary && selectedMembers.size >= 2) {
-      summary.innerHTML = renderVarianceSummary(stats);
-    }
+    host.querySelector('.ux-insp-sigma').innerHTML =
+      cell(copy('inspector_sigma_total', 'σ_total'), fmt(row.sigma, 2), 'ux-insp-total') +
+      TERMS.map((t) => cell(copy(t.uiKey, t.fallback), fmt(Math.sqrt(row[t.field]), 2), `ux-term-${t.key}`)).join('');
 
-    // Update selected state in scatter and map
-    host.querySelectorAll('.ux-scatter-point').forEach((p) => {
-      p.classList.toggle('selected', parseInt(p.getAttribute('data-idx')) === selectedSampleIdx);
-    });
-    host.querySelectorAll('.ux-map-point').forEach((p) => {
-      p.classList.toggle('selected', parseInt(p.getAttribute('data-idx')) === selectedSampleIdx);
-    });
+    renderWhiskerPlot(host.querySelector('.ux-whisker-svg'), sample, row);
   }
 
+  /** Per-member median and Q10-Q90 whiskers, grouped by split, with observed and ensemble lines */
   function renderWhiskerPlot(svg, sample, stats) {
     const container = svg.parentElement;
-    const NS = 'http://www.w3.org/2000/svg';
-    const el = (name, attrs, text) => {
-      const node = document.createElementNS(NS, name);
-      Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-      if (text !== undefined) node.textContent = text;
-      return node;
-    };
 
     const draw = () => {
-      const st = container.__whisker;
-      if (!st) return;
-      const { sample: smp, stats: s } = st;
+      const { sample: smp, stats: s } = container.__whisker;
       const cs = getComputedStyle(container);
       const width = Math.max(
-        320,
-        container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0)
+        240,
+        container.clientWidth - (parseFloat(cs.paddingLeft) || 0) - (parseFloat(cs.paddingRight) || 0),
       );
-      const rowH = 9;
-      const groupGap = 10;
-      const margin = { left: 56, right: 20, top: 34, bottom: 42 };
-      const members = Array.from(selectedMembers).sort((x, y) => x - y);
+      const rowH = 4.5;
+      const groupGap = 6;
+      const margin = { left: 44, right: 8, top: 22, bottom: 34 };
+      const ids = Array.from(selectedMembers).sort((x, y) => x - y);
       const groups = new Map();
-      members.forEach((m) => {
+      ids.forEach((m) => {
         const split = members[m].split;
         if (!groups.has(split)) groups.set(split, []);
         groups.get(split).push(m);
       });
       const plotW = width - margin.left - margin.right;
-      const plotH = members.length * rowH + (groups.size - 1) * groupGap + 8;
+      const plotH = ids.length * rowH + (groups.size - 1) * groupGap + 8;
       const height = margin.top + plotH + margin.bottom;
 
-      // x range fitted to selected members' bands + observed + ensemble
+      // x range fitted to the selected members' bands + observed + ensemble
       let lo = Math.min(smp.observed, s.ensQ1);
       let hi = Math.max(smp.observed, s.ensQ3);
-      members.forEach((m) => {
+      ids.forEach((m) => {
         lo = Math.min(lo, s.q1[m]);
         hi = Math.max(hi, s.q3[m]);
       });
@@ -812,33 +541,32 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       const border = getCSSVar('--border');
 
       svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-      svg.style.width = '100%';
       svg.style.height = `${height}px`;
       svg.innerHTML = '';
 
-      // legend (above the plot)
-      let lx = margin.left;
+      // legend above the plot
+      let lx = 4;
       [
         ['Observed', getCSSVar('--c-observed'), 'line'],
-        [width < 560 ? 'Ensemble' : 'Ensemble median', getCSSVar('--c-ensemble'), 'line'],
-        [width < 560 ? 'Q10-Q90' : 'Ensemble Q10-Q90', getCSSVar('--c-band'), 'box'],
-        [width < 560 ? 'Members' : 'Member median and Q10-Q90', getCSSVar('--c-member'), 'dot'],
+        ['Ensemble', getCSSVar('--c-ensemble'), 'line'],
+        ['Q10–Q90', getCSSVar('--c-band'), 'box'],
+        ['Members', getCSSVar('--c-member'), 'dot'],
       ].forEach(([label, color, kind]) => {
-        if (kind === 'line') svg.appendChild(el('line', { x1: lx, x2: lx + 14, y1: 12, y2: 12, stroke: color, 'stroke-width': 2 }));
-        else if (kind === 'box') svg.appendChild(el('rect', { x: lx, y: 6, width: 14, height: 12, fill: color }));
-        else svg.appendChild(el('circle', { cx: lx + 7, cy: 12, r: 3, fill: color }));
-        svg.appendChild(el('text', { x: lx + 19, y: 16, 'font-size': 11, fill: muted }, label));
-        lx += 19 + label.length * 6.2 + 14;
+        if (kind === 'line') svg.appendChild(el('line', { x1: lx, x2: lx + 12, y1: 9, y2: 9, stroke: color, 'stroke-width': 2 }));
+        else if (kind === 'box') svg.appendChild(el('rect', { x: lx, y: 4, width: 12, height: 10, fill: color }));
+        else svg.appendChild(el('circle', { cx: lx + 6, cy: 9, r: 3, fill: color }));
+        svg.appendChild(el('text', { x: lx + 16, y: 13, 'font-size': 10, fill: muted }, label));
+        lx += 16 + label.length * 5.4 + 10;
       });
 
       // grid + x axis
-      const ticks = niceTicks(lo, hi, 6);
+      const ticks = niceTicks(lo, hi, 4);
       ticks.forEach((v) => {
         svg.appendChild(el('line', { x1: xScale(v), x2: xScale(v), y1: margin.top, y2: margin.top + plotH, stroke: border, 'stroke-width': 0.5, opacity: 0.7 }));
       });
       svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: margin.top + plotH, y2: margin.top + plotH, stroke: muted }));
       renderAxisTicks(svg, xScale, lo, hi, false, true, margin, plotW, plotH, ticks);
-      svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, 'Total alkalinity (µmol/kg)'));
+      svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 4, 'text-anchor': 'middle', 'font-size': 10, fill: muted }, 'TA (µmol/kg)'));
 
       // ensemble band behind everything
       svg.appendChild(el('rect', {
@@ -848,21 +576,20 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
 
       // member rows grouped by split
       let y = margin.top + 8;
-      groups.forEach((ids, split) => {
+      groups.forEach((groupIds, split) => {
         const y0 = y;
-        ids.forEach((m) => {
-          const rep = members[m].replicate;
-          const row = el('g', { class: 'ux-whisker-row' });
-          row.appendChild(el('title', {}, `Split ${split}, member ${rep}: median ${fmt(s.q2[m], 1)} (Q10 ${fmt(s.q1[m], 1)} to Q90 ${fmt(s.q3[m], 1)})`));
-          row.appendChild(el('rect', {
-            x: xScale(s.q1[m]), y: y - 2, width: Math.max(1, xScale(s.q3[m]) - xScale(s.q1[m])), height: 4, class: 'ux-whisker-band',
+        groupIds.forEach((m) => {
+          const rowGroup = el('g', { class: 'ux-whisker-row' });
+          rowGroup.appendChild(el('title', {}, `Split ${split}, member ${members[m].replicate}: median ${fmt(s.q2[m], 1)} (Q10 ${fmt(s.q1[m], 1)} to Q90 ${fmt(s.q3[m], 1)})`));
+          rowGroup.appendChild(el('rect', {
+            x: xScale(s.q1[m]), y: y - 1.2, width: Math.max(1, xScale(s.q3[m]) - xScale(s.q1[m])), height: 2.4, class: 'ux-whisker-band',
           }));
-          row.appendChild(el('circle', { cx: xScale(s.q2[m]), cy: y, r: 2.6, class: 'ux-whisker-dot' }));
-          svg.appendChild(row);
+          rowGroup.appendChild(el('circle', { cx: xScale(s.q2[m]), cy: y, r: 1.8, class: 'ux-whisker-dot' }));
+          svg.appendChild(rowGroup);
           y += rowH;
         });
         svg.appendChild(el('text', {
-          x: margin.left - 8, y: (y0 + y - rowH) / 2 + 4, 'text-anchor': 'end', 'font-size': 11, 'font-weight': 600, fill: muted,
+          x: margin.left - 6, y: (y0 + y - rowH) / 2 + 3, 'text-anchor': 'end', 'font-size': 10, 'font-weight': 600, fill: muted,
         }, `Split ${split}`));
         y += groupGap;
       });
@@ -876,7 +603,7 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     if (!container.__whiskerObserver) {
       let lastWidth = 0;
       container.__whiskerObserver = new ResizeObserver(() => {
-        if (container.clientWidth !== lastWidth) {
+        if (container.clientWidth && container.clientWidth !== lastWidth) {
           lastWidth = container.clientWidth;
           draw();
         }
@@ -886,114 +613,33 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
     draw();
   }
 
-  function renderVarianceSummary(stats) {
-    // Compute between-split and within-split variance
-    const memberList = Array.from(selectedMembers);
-    const splitGroups = new Map();
-
-    memberList.forEach((idx) => {
-      const split = members[idx].split;
-      if (!splitGroups.has(split)) {
-        splitGroups.set(split, []);
-      }
-      splitGroups.get(split).push(stats.q2[idx]);
-    });
-
-    let splitVar = 0,
-      withinVar = 0;
-
-    if (splitGroups.size >= 2) {
-      // Between-split variance
-      const splitMeans = Array.from(splitGroups.values()).map((vals) =>
-        vals.reduce((a, b) => a + b, 0) / vals.length
-      );
-      const globalMean =
-        memberList
-          .map((idx) => stats.q2[idx])
-          .reduce((a, b) => a + b, 0) / memberList.length;
-      splitVar = splitMeans
-        .map((m) => (m - globalMean) ** 2)
-        .reduce((a, b) => a + b, 0) / splitMeans.length;
-    }
-
-    if (memberList.some((idx) => splitGroups.get(members[idx].split).length >= 2)) {
-      // Within-split variance (std within each split, averaged)
-      const withinVars = Array.from(splitGroups.values())
-        .filter((vals) => vals.length >= 2)
-        .map((vals) => {
-          const mean = vals.reduce((a, b) => a + b, 0) / vals.length;
-          return (
-            vals.map((v) => (v - mean) ** 2).reduce((a, b) => a + b, 0) / vals.length
-          );
-        });
-      if (withinVars.length > 0) {
-        withinVar = withinVars.reduce((a, b) => a + b, 0) / withinVars.length;
-      }
-    }
-
-    const splitStd = Math.sqrt(splitVar);
-    const withinStd = Math.sqrt(withinVar);
-
-    return `
-      ${content.ui.between_split_spread} ${splitGroups.size >= 2 ? fmt(splitStd, 2) + ' µmol/kg' : 'n/a'}
-      <br/>
-      ${content.ui.within_split_spread} ${withinVar > 0 ? fmt(withinStd, 2) + ' µmol/kg' : 'n/a'}
-    `;
-  }
-
   // === Sample selection ===
   function selectSample(idx) {
-    selectedSampleIdx = idx;
-    updateInspector();
-    updateLiveRegion();
-  }
-
-  function nextSample() {
-    selectedSampleIdx = (selectedSampleIdx + 1) % test_sample.length;
-    updateInspector();
-  }
-
-  function previousSample() {
-    selectedSampleIdx = (selectedSampleIdx - 1 + test_sample.length) % test_sample.length;
-    updateInspector();
+    selectedSampleIdx = (idx + test_sample.length) % test_sample.length;
+    redrawSelection();
   }
 
   // === Tooltip ===
   let tooltipElem = null;
 
-  function showTooltip(e, sample, stats) {
+  function showTooltip(e, idx) {
+    const sample = test_sample[idx];
+    const row = rows[idx];
     if (!tooltipElem) {
       tooltipElem = document.createElement('div');
       tooltipElem.className = 'ux-scatter-tooltip';
       host.appendChild(tooltipElem);
     }
-
-    tooltipElem.innerHTML = `
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_cruise}</div>
-        <div class="ux-tooltip-value">${sample.cruise}</div>
-      </div>
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_date}</div>
-        <div class="ux-tooltip-value">${sample.date}</div>
-      </div>
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_position}</div>
-        <div class="ux-tooltip-value">${fmt(sample.lat, 1)}°, ${fmt(sample.lon, 1)}°</div>
-      </div>
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_observed}</div>
-        <div class="ux-tooltip-value">${fmt(sample.observed, 2)}</div>
-      </div>
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_predicted}</div>
-        <div class="ux-tooltip-value">${fmt(stats.ensQ2, 2)}</div>
-      </div>
-      <div class="ux-tooltip-row">
-        <div class="ux-tooltip-label">${ui.tooltip_spread}</div>
-        <div class="ux-tooltip-value">${fmt(stats.spread, 2)}</div>
-      </div>
-    `;
+    const line = (label, value) => `<div class="ux-tooltip-row"><div class="ux-tooltip-label">${label}</div><div class="ux-tooltip-value">${value}</div></div>`;
+    tooltipElem.innerHTML = [
+      line(ui.tooltip_cruise, sample.cruise),
+      line(ui.tooltip_date, sample.date),
+      line(ui.tooltip_position, `${fmt(sample.lat, 1)}°, ${fmt(sample.lon, 1)}°`),
+      line(ui.tooltip_observed, fmt(sample.observed, 2)),
+      line(ui.tooltip_predicted, fmt(row.ensQ2, 2)),
+      line(copy('tooltip_sigma', 'σ_total:'), fmt(row.sigma, 2)),
+    ].join('');
+    tooltipElem.style.display = '';
 
     const rect = e.target.getBoundingClientRect();
     const parentRect = host.getBoundingClientRect();
@@ -1002,105 +648,95 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
   }
 
   function hideTooltip() {
-    if (tooltipElem) {
-      tooltipElem.style.display = 'none';
-    }
+    if (tooltipElem) tooltipElem.style.display = 'none';
   }
 
   // === Live region for accessibility ===
   function updateLiveRegion() {
-    const region = host.querySelector('.ux-live-region');
-    if (region) {
-      const sample = test_sample[selectedSampleIdx];
-      const stats = computeEnsembleStats(sample, Array.from(selectedMembers));
-      region.textContent = content.ui.live_summary.replace('{lat}', sample.lat.toFixed(1)).replace('{lon}', sample.lon.toFixed(1)).replace('{observed}', sample.observed.toFixed(2)).replace('{predicted}', stats.ensQ2.toFixed(2)).replace('{spread}', stats.spread.toFixed(2)).replace('{count}', selectedMembers.size);
-    }
+    const sample = test_sample[selectedSampleIdx];
+    const row = rows[selectedSampleIdx];
+    host.querySelector('.ux-live-region').textContent = ui.live_summary
+      .replace('{lat}', sample.lat.toFixed(1))
+      .replace('{lon}', sample.lon.toFixed(1))
+      .replace('{observed}', sample.observed.toFixed(2))
+      .replace('{predicted}', row.ensQ2.toFixed(2))
+      .replace('{spread}', row.spread.toFixed(2))
+      .replace('{count}', selectedMembers.size);
   }
 
   // === Initial render ===
+  host.classList.add('ux-host');
   host.innerHTML = `
     <div class="ux-explorer-heading"><h3>${explorer.title}</h3><p>${md(explorer.intro, ctx)}</p></div>
     <div class="ux-live-region" role="status" aria-live="polite" aria-atomic="true"></div>
 
     <div class="ux-explorer">
-      <div>
-        <div class="ux-member-grid-wrapper">
-          <div class="ux-member-grid-controls">
-            ${explorer.presets.map((preset, index) => `<button type="button" class="ux-preset-chip" aria-pressed="${index === 0}">${preset.label}</button>`).join('')}
-            <div class="ux-selection-label">${ui.member_count.replace('{count}', members.length)}</div>
-          </div>
-
-          <div class="ux-random-controls ux-hidden">
-            <label aria-label="${ui.random_count_label}">
-              ${ui.random_count_label}:
-              <input type="range" class="ux-random-slider" min="2" max="${members.length}" value="10">
-              <span class="ux-random-value">10</span>
-            </label>
-            <button type="button" class="ux-reshuffle-btn">${ui.reshuffle}</button>
-          </div>
-
-          <div class="ux-member-grid"></div>
+      <div class="ux-controls">
+        <div class="ux-member-grid-controls">
+          ${explorer.presets.map((preset, index) => `<button type="button" class="ux-preset-chip" aria-pressed="${index === 0}">${preset.label}</button>`).join('')}
+          <div class="ux-selection-label"></div>
         </div>
+
+        <div class="ux-random-controls ux-hidden">
+          <label aria-label="${ui.random_count_label}">
+            ${ui.random_count_label}:
+            <input type="range" class="ux-random-slider" min="2" max="${members.length}" value="10">
+            <span class="ux-random-value">10</span>
+          </label>
+          <button type="button" class="ux-reshuffle-btn">${ui.reshuffle}</button>
+        </div>
+
+        <div class="ux-member-grid"></div>
+        <p class="ux-member-note">${copy('member_cell_note', 'Number in each cell: test MAE of that member (µmol/kg). Dark cells are included in the ensemble.')}</p>
 
         <div class="ux-metrics-grid">
-          <div class="ux-metric-tile ux-rmse">
-            <div class="ux-metric-label">${labels.rmse}</div>
-            <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
-          </div>
-          <div class="ux-metric-tile ux-coverage">
-            <div class="ux-metric-label">${labels.coverage}</div>
-            <div class="ux-metric-value">—<span class="ux-metric-unit">%</span></div>
-          </div>
-          <div class="ux-metric-tile ux-width">
-            <div class="ux-metric-label">${labels.width}</div>
-            <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
-          </div>
-          <div class="ux-metric-tile ux-spread">
-            <div class="ux-metric-label">${labels.spread}</div>
-            <div class="ux-metric-value">—<span class="ux-metric-unit">µmol/kg</span></div>
-          </div>
+          ${tiles.map((t) => `
+            <div class="ux-metric-tile" data-metric="${t.key}">
+              <div class="ux-metric-label">${t.label}</div>
+              <div class="ux-metric-value"></div>
+              ${t.sub ? '<div class="ux-metric-sub"></div>' : ''}
+            </div>`).join('')}
         </div>
       </div>
 
-      <div class="ux-charts-column">
-        <div class="ux-chart-card">
-          <div class="ux-scatter-wrapper"><svg class="ux-scatter-svg"></svg></div>
-          <div class="ux-colorbar"></div>
-        </div>
-
-        <div class="ux-chart-card">
-          <div class="ux-map-container">
-            <svg class="ux-map-svg"></svg>
-          </div>
-        </div>
+      <div class="ux-chart-card">
+        <div class="ux-scatter-wrapper"><svg class="ux-scatter-svg"></svg></div>
+        <div class="ux-colorbar"></div>
       </div>
     </div>
 
-    <div class="ux-sample-inspector">
-      <div class="ux-inspector-header">
-        <div>
-          <strong>${ui.sample_inspector}</strong>
-        </div>
-        <div class="ux-sample-nav">
-          <button type="button" class="ux-nav-btn" aria-label="${ui.previous_sample}">${ui.previous_sample}</button>
-          <button type="button" class="ux-nav-btn" aria-label="${ui.next_sample}">${ui.next_sample}</button>
-          <select class="ux-sort-select" aria-label="${ui.jump_to}">
-            <option value="">${ui.jump_to}</option>
-            <option value="uncertain">${ui.sort_options[0]}</option>
-            <option value="least">${ui.sort_options[1]}</option>
-            <option value="error">${ui.sort_options[2]}</option>
-            <option value="random">${ui.sort_options[3]}</option>
-          </select>
-        </div>
+    <div class="ux-map-row">
+      <div class="ux-chart-card ux-map-card">
+        <div class="ux-map-container"><svg class="ux-map-svg"></svg></div>
       </div>
 
-      <div class="ux-sample-info"></div>
-      <div class="ux-whisker-plot-container">
-        <svg class="ux-whisker-svg"></svg>
+      <div class="ux-sample-inspector">
+        <div class="ux-inspector-header">
+          <strong>${ui.sample_inspector}</strong>
+          <div class="ux-sample-nav">
+            <button type="button" class="ux-nav-btn" data-step="-1" aria-label="${ui.previous_sample}" title="${ui.previous_sample}">←</button>
+            <button type="button" class="ux-nav-btn" data-step="1" aria-label="${ui.next_sample}" title="${ui.next_sample}">→</button>
+            <select class="ux-sort-select" aria-label="${ui.jump_to}">
+              <option value="">${ui.jump_to}</option>
+              <option value="uncertain">${ui.sort_options[0]}</option>
+              <option value="least">${ui.sort_options[1]}</option>
+              <option value="error">${ui.sort_options[2]}</option>
+              <option value="random">${ui.sort_options[3]}</option>
+            </select>
+          </div>
+        </div>
+        <div class="ux-insp-line"></div>
+        <div class="ux-insp-stats"></div>
+        <div class="ux-insp-sigma"></div>
+        <div class="ux-whisker-plot-container"><svg class="ux-whisker-svg"></svg></div>
       </div>
-      <div class="ux-variance-summary"></div>
     </div>
   `;
+
+  const scatterSvg = host.querySelector('.ux-scatter-svg');
+  const mapSvg = host.querySelector('.ux-map-svg');
+  const redrawScatter = setupSVGResize(host.querySelector('.ux-scatter-wrapper'), scatterSvg, drawScatter);
+  const redrawMap = setupSVGResize(host.querySelector('.ux-map-container'), mapSvg, drawMap);
 
   // === Event handlers ===
   const presetChips = host.querySelectorAll('.ux-member-grid-controls .ux-preset-chip');
@@ -1122,287 +758,126 @@ window.BLOCKS['uncertainty-explorer'] = (host, block, ctx) => {
       }
       applyPreset(currentPreset);
 
-      // Update chip states
       presetChips.forEach((c, i) => {
         c.setAttribute('aria-pressed', i === idx ? 'true' : 'false');
       });
     });
   });
 
-  // Random controls
-  const randomSlider = host.querySelector('.ux-random-slider');
-  if (randomSlider) {
-    randomSlider.addEventListener('input', (e) => {
-      randomN = parseInt(e.target.value);
-      host.querySelector('.ux-random-value').textContent = randomN;
-      if (currentPreset === 'random') {
-        applyPreset('random');
-      }
-    });
-  }
+  host.querySelector('.ux-random-slider').addEventListener('input', (e) => {
+    randomN = parseInt(e.target.value);
+    host.querySelector('.ux-random-value').textContent = randomN;
+    if (currentPreset === 'random') applyPreset('random');
+  });
+  host.querySelector('.ux-reshuffle-btn').addEventListener('click', () => applyPreset('random'));
 
-  const reshuffleBtn = host.querySelector('.ux-reshuffle-btn');
-  if (reshuffleBtn) {
-    reshuffleBtn.addEventListener('click', () => {
-      // Change seed for new shuffle
-      const currentSeed = 42;
-      applyPreset('random');
-    });
-  }
-
-  // Sample navigation
-  host.querySelector('.ux-nav-btn:nth-of-type(1)').addEventListener('click', previousSample);
-  host.querySelector('.ux-nav-btn:nth-of-type(2)').addEventListener('click', nextSample);
-
-  // Sort select
-  host.querySelector('.ux-sort-select').addEventListener('change', (e) => {
-    if (e.target.value === 'uncertain') {
-      let maxSpread = -1,
-        maxIdx = 0;
-      test_sample.forEach((s, i) => {
-        const stats = computeEnsembleStats(s, Array.from(selectedMembers));
-        if (stats.spread > maxSpread) {
-          maxSpread = stats.spread;
-          maxIdx = i;
-        }
-      });
-      selectedSampleIdx = maxIdx;
-    } else if (e.target.value === 'least') {
-      let minSpread = Infinity,
-        minIdx = 0;
-      test_sample.forEach((s, i) => {
-        const stats = computeEnsembleStats(s, Array.from(selectedMembers));
-        if (stats.spread < minSpread) {
-          minSpread = stats.spread;
-          minIdx = i;
-        }
-      });
-      selectedSampleIdx = minIdx;
-    } else if (e.target.value === 'error') {
-      let maxError = -1,
-        maxIdx = 0;
-      test_sample.forEach((s, i) => {
-        const stats = computeEnsembleStats(s, Array.from(selectedMembers));
-        if (stats.error > maxError) {
-          maxError = stats.error;
-          maxIdx = i;
-        }
-      });
-      selectedSampleIdx = maxIdx;
-    } else if (e.target.value === 'random') {
-      selectedSampleIdx = Math.floor(Math.random() * test_sample.length);
-    }
-    e.target.value = '';
-    updateInspector();
-    updateLiveRegion();
+  host.querySelectorAll('.ux-nav-btn').forEach((btn) => {
+    btn.addEventListener('click', () => selectSample(selectedSampleIdx + parseInt(btn.dataset.step)));
   });
 
-  // Initial update
+  // Jump to the sample with the highest score
+  const argBest = (score) => rows.reduce((best, r, i) => (score(r) > score(rows[best]) ? i : best), 0);
+  const jumpTo = {
+    uncertain: () => argBest((r) => r.sigma),
+    least: () => argBest((r) => -r.sigma),
+    error: () => argBest((r) => r.error),
+    random: () => Math.floor(Math.random() * rows.length),
+  };
+  host.querySelector('.ux-sort-select').addEventListener('change', (e) => {
+    if (jumpTo[e.target.value]) selectSample(jumpTo[e.target.value]());
+    e.target.value = '';
+  });
+
+  // Initial update: start on the most uncertain of the first 100 samples
+  recompute();
+  selectedSampleIdx = rows.slice(0, 100).reduce((best, r, i) => (r.sigma > rows[best].sigma ? i : best), 0);
   updateMemberGrid();
   updateMetrics();
-  updateScatter();
-  updateMap();
+  updateColorbar();
   updateInspector();
   updateLiveRegion();
 };
 
 // ============================================================================
-// 2. VARIANCE DECOMPOSITION
+// 2. UNCERTAINTY BUDGET
 // ============================================================================
 
-window.BLOCKS['variance-decomposition'] = (host, block, ctx) => {
+window.BLOCKS['uncertainty-budget'] = (host, block, ctx) => {
   const { data, content } = ctx;
-  const ui = content.ui;
-  const { variance_means } = data;
+  const copy = (key, fallback) => content.ui[key] || fallback;
+  const all = data.members.map((_, i) => i);
+  const rows = data.test_sample.map((s) => computeEnsembleStats(s, all, data.members));
+  const budget = (subset) => {
+    const terms = TERMS.map((t) => ({ ...t, name: copy(t.uiKey, t.fallback), variance: mean(subset.map((r) => r[t.field])) }));
+    return { terms, total: terms.reduce((s, t) => s + t.variance, 0) };
+  };
+  const overall = budget(rows);
+  const pct = (v, total) => `${fmt((v / total) * 100, 1)} %`;
 
-  // Training color for split variance (blue-ish)
-  const colTrain = getCSSVar('--c-train');
-  // Warning color for HPO variance (orange-ish)
-  const colHpo = getCSSVar('--c-warn');
-
-  host.innerHTML = `
-    <div class="ux-variance-legend">
-      <div class="ux-variance-legend-item">
-        <div class="ux-variance-legend-box" style="background: ${colTrain};"></div>
-        <span>${ui.variance_split}</span>
-      </div>
-      <div class="ux-variance-legend-item">
-        <div class="ux-variance-legend-box" style="background: ${colHpo};"></div>
-        <span>${data.run.method === 'rashomon' ? ui.variance_rashomon : ui.variance_independent}</span>
-      </div>
-    </div>
-
-    <div class="ux-variance-chart">
-      <div class="ux-variance-row">
-        <div class="ux-variance-label">Q0.1</div>
-        <div class="ux-variance-bar">
-          <div class="ux-variance-segment" style="background: ${colTrain}; flex: var(--split-flex, 1);"></div>
-          <div class="ux-variance-segment" style="background: ${colHpo}; flex: var(--hpo-flex, 1);"></div>
-        </div>
-        <div class="ux-variance-label" style="min-width: 80px;">σ = <span class="ux-total-std">—</span></div>
-      </div>
-      <div class="ux-variance-row">
-        <div class="ux-variance-label">Q0.5</div>
-        <div class="ux-variance-bar">
-          <div class="ux-variance-segment" style="background: ${colTrain}; flex: var(--split-flex, 1);"></div>
-          <div class="ux-variance-segment" style="background: ${colHpo}; flex: var(--hpo-flex, 1);"></div>
-        </div>
-        <div class="ux-variance-label" style="min-width: 80px;">σ = <span class="ux-total-std">—</span></div>
-      </div>
-      <div class="ux-variance-row">
-        <div class="ux-variance-label">Q0.9</div>
-        <div class="ux-variance-bar">
-          <div class="ux-variance-segment" style="background: ${colTrain}; flex: var(--split-flex, 1);"></div>
-          <div class="ux-variance-segment" style="background: ${colHpo}; flex: var(--hpo-flex, 1);"></div>
-        </div>
-        <div class="ux-variance-label" style="min-width: 80px;">σ = <span class="ux-total-std">—</span></div>
-      </div>
-    </div>
-
-    <div class="ux-variance-caption"></div>
-  `;
-
-  // Fill in data
-  const rows = host.querySelectorAll('.ux-variance-row');
-  const quantiles = ['q_0.1', 'q_0.5', 'q_0.9'];
-
-  rows.forEach((row, idx) => {
-    const qKey = quantiles[idx];
-    const qData = variance_means[qKey];
-    const total = qData.split_var + qData.hpo_var;
-
-    // Set flex proportions
-    const bars = row.querySelectorAll('.ux-variance-bar');
-    bars.forEach((bar) => {
-      bar.style.setProperty('--split-flex', qData.split_var.toString());
-      bar.style.setProperty('--hpo-flex', qData.hpo_var.toString());
-    });
-
-    // Total std
-    const stdElem = row.querySelector('.ux-total-std');
-    stdElem.textContent = fmt(Math.sqrt(total), 2);
+  // Bins of equal sample count, ordered by predicted uncertainty
+  const N_BINS = 8;
+  const sorted = [...rows].sort((a, b) => a.sigma - b.sigma);
+  const bins = Array.from({ length: N_BINS }, (_, i) => {
+    const subset = sorted.slice(Math.round((i * sorted.length) / N_BINS), Math.round(((i + 1) * sorted.length) / N_BINS));
+    const b = budget(subset);
+    return { ...b, n: subset.length, predicted: Math.sqrt(b.total), actual: Math.sqrt(mean(subset.map((r) => r.error ** 2))) };
   });
 
-  // Caption
-  const caption = host.querySelector('.ux-variance-caption');
-  const q05 = variance_means['q_0.5'];
-  const total05 = q05.split_var + q05.hpo_var;
-  const splitPct = ((q05.split_var / total05) * 100).toFixed(1);
-  const hpoPct = ((q05.hpo_var / total05) * 100).toFixed(1);
-
-  caption.textContent = (data.run.method === 'rashomon' ? ui.variance_caption_rashomon : ui.variance_caption_independent).replace('{split}', splitPct).replace('{within}', hpoPct);
-};
-
-// ============================================================================
-// 3. SPREAD VS ERROR
-// ============================================================================
-
-window.BLOCKS['spread-vs-error'] = (host, block, ctx) => {
-  const { data, content } = ctx;
-  const ui = content.ui;
-  const { spread_vs_error } = data;
-  const NS = 'http://www.w3.org/2000/svg';
-
-  const series = [
-    { key: 'member_std', label: ui.spread_series[0], color: '--c-test' },
-    { key: 'scaled_iqr', label: ui.spread_series[1], color: '--accent' },
-    { key: 'combined', label: ui.spread_series[2], color: '--c-validation' },
-  ];
-  const visible = new Set(['member_std', 'scaled_iqr']);
-
-  host.innerHTML = `
-    <div class="ux-spread-legend" role="group" aria-label="${ui.uncertainty_estimates}">
-      ${series.map((s) => `
-        <button type="button" class="ux-spread-legend-chip" data-series="${s.key}" aria-pressed="${visible.has(s.key)}" style="--chip-color: var(${s.color})">
-          <span class="ux-chip-swatch"></span>${s.label}
-        </button>`).join('')}
-    </div>
-    <div class="ux-sve-plot"><svg class="ux-spread-svg"></svg></div>
-    <div class="ux-spread-caption"></div>
-  `;
-
-  const el = (name, attrs, text) => {
-    const node = document.createElementNS(NS, name);
-    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
-
-  const plot = host.querySelector('.ux-sve-plot');
-  const svg = host.querySelector('.ux-spread-svg');
-
-  const render = (width, height) => {
-    const margin = { top: 16, right: 20, bottom: 44, left: 56 };
-    const plotW = width - margin.left - margin.right;
-    const plotH = height - margin.top - margin.bottom;
-    const active = series.filter((s) => visible.has(s.key) && spread_vs_error[s.key]);
-
-    // same range on both axes so the dashed 1:1 line is the line of perfect uncertainty
-    let hi = 0;
-    active.forEach((s) => spread_vs_error[s.key].forEach((p) => { hi = Math.max(hi, p.u, p.rmse); }));
-    hi = (hi || 1) * 1.05;
-    const lo = 0;
-    const xScale = (v) => margin.left + ((v - lo) / (hi - lo)) * plotW;
-    const yScale = (v) => margin.top + (1 - (v - lo) / (hi - lo)) * plotH;
-    const muted = getCSSVar('--text-muted');
-    const border = getCSSVar('--border');
-
-    svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
-    svg.innerHTML = '';
-    const ticks = niceTicks(lo, hi, 6);
-    ticks.forEach((v) => {
-      svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: yScale(v), y2: yScale(v), stroke: border, 'stroke-width': 0.5, opacity: 0.7 }));
-      svg.appendChild(el('line', { x1: xScale(v), x2: xScale(v), y1: margin.top, y2: margin.top + plotH, stroke: border, 'stroke-width': 0.5, opacity: 0.7 }));
-    });
-    svg.appendChild(el('line', { x1: margin.left, x2: margin.left + plotW, y1: margin.top + plotH, y2: margin.top + plotH, stroke: muted }));
-    svg.appendChild(el('line', { x1: margin.left, x2: margin.left, y1: margin.top, y2: margin.top + plotH, stroke: muted }));
-    renderAxisTicks(svg, xScale, lo, hi, false, true, margin, plotW, plotH, ticks);
-    renderAxisTicks(svg, yScale, lo, hi, true, false, margin, plotW, plotH, ticks);
-
-    svg.appendChild(el('line', {
-      x1: xScale(lo), y1: yScale(lo), x2: xScale(hi), y2: yScale(hi),
-      stroke: muted, 'stroke-width': 1.5, 'stroke-dasharray': '5,4',
-    }));
-    svg.appendChild(el('text', {
-      x: xScale(hi) - 6, y: yScale(hi) + 14, 'text-anchor': 'end', 'font-size': 11, fill: muted,
-    }, ui.perfect_line));
-
-    active.forEach((s) => {
-      const color = getCSSVar(s.color);
-      const pts = spread_vs_error[s.key];
-      const d = pts.map((p, i) => `${i ? 'L' : 'M'} ${xScale(p.u)} ${yScale(p.rmse)}`).join(' ');
-      svg.appendChild(el('path', { d, stroke: color, 'stroke-width': 2, fill: 'none' }));
-      pts.forEach((p) => {
-        const c = el('circle', { cx: xScale(p.u), cy: yScale(p.rmse), r: 4, fill: color });
-        c.appendChild(el('title', {}, ui.spread_point_title.replace('{series}', s.label).replace('{uncertainty}', fmt(p.u, 2)).replace('{rmse}', fmt(p.rmse, 2)).replace('{count}', p.n)));
-        svg.appendChild(c);
-      });
-    });
-
-    svg.appendChild(el('text', { x: margin.left + plotW / 2, y: height - 6, 'text-anchor': 'middle', 'font-size': 11, fill: muted }, ui.spread_axis_x));
-    svg.appendChild(el('text', {
-      x: 13, y: margin.top + plotH / 2, 'text-anchor': 'middle', 'font-size': 11, fill: muted,
-      transform: `rotate(-90 13 ${margin.top + plotH / 2})`,
-    }, ui.spread_axis_y));
-  };
-
-  host.querySelectorAll('.ux-spread-legend-chip').forEach((chip) => {
-    chip.addEventListener('click', () => {
-      const key = chip.dataset.series;
-      if (visible.has(key)) {
-        if (visible.size === 1) return; // keep at least one series
-        visible.delete(key);
-      } else {
-        visible.add(key);
-      }
-      chip.setAttribute('aria-pressed', String(visible.has(key)));
-      render(plot.clientWidth, plot.clientHeight);
-    });
+  // Square log-log plot. Each bin is one row at its actual error: the predicted uncertainty
+  // grows from left to right as the variance terms are added, ending at sigma_total.
+  bins.forEach((b) => {
+    let sum = 0;
+    b.steps = b.terms.map((t) => ({ key: t.key, sigma: Math.sqrt(sum += t.variance) }));
   });
-  setupSVGResize(plot, svg, render);
+  const SIZE = 460, m = { l: 58, r: 16, t: 16, b: 52 }, plot = SIZE - m.l - m.r;
+  const values = bins.flatMap((b) => [b.steps[0].sigma, b.predicted, b.actual]);
+  const lo = Math.min(...values) / 1.5, hi = Math.max(...values) * 1.4;
+  const pos = (v) => (Math.log(v / lo) / Math.log(hi / lo)) * plot;
+  const X = (v) => m.l + pos(v), Y = (v) => m.t + plot - pos(v);
+  const ticks = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500].filter((t) => t > lo && t < hi);
+  const row = (b) => `<line class="ux-cal-link" x1="${X(b.steps[0].sigma)}" x2="${X(b.predicted)}" y1="${Y(b.actual)}" y2="${Y(b.actual)}"/>`
+    + b.steps.map((st, k) => `<circle class="ux-term-${st.key}" cx="${X(st.sigma)}" cy="${Y(b.actual)}" r="${k === b.steps.length - 1 ? 6.5 : 4}"/>`).join('');
+  const tip = (b) => `Predicted σ_total ${fmt(b.predicted, 1)}, actual RMSE ${fmt(b.actual, 1)} µmol/kg (n = ${b.n})\n`
+    + b.terms.map((t) => `${t.name}: ${pct(t.variance, b.total)}`).join('\n');
+  const svg = `
+    <svg class="ux-cal-plot" viewBox="0 0 ${SIZE} ${SIZE}" role="img" aria-label="${copy('cal_title', 'Predicted total uncertainty against actual error')}">
+      ${ticks.map((t) => `
+        <line class="ux-cal-grid" x1="${X(t)}" x2="${X(t)}" y1="${m.t}" y2="${m.t + plot}"/>
+        <line class="ux-cal-grid" x1="${m.l}" x2="${m.l + plot}" y1="${Y(t)}" y2="${Y(t)}"/>
+        <text class="ux-cal-tick" x="${X(t)}" y="${m.t + plot + 16}" text-anchor="middle">${t}</text>
+        <text class="ux-cal-tick" x="${m.l - 8}" y="${Y(t) + 4}" text-anchor="end">${t}</text>`).join('')}
+      <rect class="ux-cal-frame" x="${m.l}" y="${m.t}" width="${plot}" height="${plot}"/>
+      <line class="ux-cal-identity" x1="${X(lo)}" y1="${Y(lo)}" x2="${X(hi)}" y2="${Y(hi)}"/>
+      <text class="ux-cal-note" x="${m.l + 10}" y="${m.t + 18}">${copy('cal_above', 'above the line: actual error larger than predicted (over-confident)')}</text>
+      <text class="ux-cal-note" x="${m.l + plot - 10}" y="${m.t + plot - 10}" text-anchor="end">${copy('cal_below', 'below the line: uncertainty over-estimated')}</text>
+      ${bins.map((b) => `<g class="ux-cal-row"><title>${tip(b)}</title>${row(b)}</g>`).join('')}
+      <text class="ux-cal-axis" x="${m.l + plot / 2}" y="${SIZE - 10}" text-anchor="middle">${copy('cal_axis_x', 'Predicted uncertainty σ (µmol kg⁻¹), log scale')}</text>
+      <text class="ux-cal-axis" transform="translate(16 ${m.t + plot / 2}) rotate(-90)" text-anchor="middle">${copy('cal_axis_y', 'Actual error, RMSE (µmol kg⁻¹), log scale')}</text>
+    </svg>`;
 
-  host.querySelector('.ux-spread-caption').textContent = ui.spread_caption.replace('{member}', fmt(spread_vs_error.corr_abs_err.member_std, 2)).replace('{scaled}', fmt(spread_vs_error.corr_abs_err.scaled_iqr, 2));
+  // append: the host already holds the block title
+  host.insertAdjacentHTML('beforeend', `
+    <div class="ux-cal">
+      <div>${svg}</div>
+      <div class="ux-cal-side">
+        <p>${copy('cal_guide', 'Test samples are sorted by predicted σ_total and cut into {bins} equal groups, one row each, placed at the group\'s actual error. Along a row the predicted uncertainty grows as terms are added: data split only, then + member, then + quantile width, which gives σ_total (large dot). A large dot on the dashed line means σ_total matches the actual error.').replace('{bins}', N_BINS)}</p>
+        <table class="ux-budget-table">
+          <thead>
+            <tr><th>${copy('budget_term', 'Term')}</th><th>${copy('budget_sigma', 'σ (µmol/kg)')}</th><th>${copy('budget_share', 'Share of variance')}</th></tr>
+          </thead>
+          <tbody>
+            ${overall.terms.map((t) => `
+              <tr><td><span class="ux-budget-swatch ux-term-${t.key}"></span>${t.name}</td><td>${fmt(Math.sqrt(t.variance), 1)}</td><td>${pct(t.variance, overall.total)}</td></tr>`).join('')}
+          </tbody>
+          <tfoot>
+            <tr><td>${copy('budget_total', 'Total (σ_total)')}</td><td>${fmt(Math.sqrt(overall.total), 1)}</td><td>100 %</td></tr>
+          </tfoot>
+        </table>
+        <p class="ux-budget-caption">${copy('budget_caption', 'σ is the square root of the mean variance over the {samples} displayed test samples, all {members} members.').replace('{samples}', rows.length).replace('{members}', all.length)}</p>
+      </div>
+    </div>`);
 };
+
 
 // ============================================================================
 // 4. ENSEMBLE GROWTH
@@ -1412,7 +887,6 @@ window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
   const { data, content } = ctx;
   const ui = content.ui;
   const { growth } = data;
-  const NS = 'http://www.w3.org/2000/svg';
 
   host.innerHTML = `
     <div class="ux-growth-panels">
@@ -1427,13 +901,6 @@ window.BLOCKS['ensemble-growth'] = (host, block, ctx) => {
     </div>
     <div class="ux-growth-caption"></div>
   `;
-
-  const el = (name, attrs, text) => {
-    const node = document.createElementNS(NS, name);
-    Object.entries(attrs).forEach(([k, v]) => node.setAttribute(k, v));
-    if (text !== undefined) node.textContent = text;
-    return node;
-  };
 
   // kind: key in growth rows, yLabel, optional reference value (dashed) with label, extra y-range to include
   const specs = {

@@ -5,6 +5,7 @@ async function renderSite() {
   const { project, overview, dataViewer } = await response.json();
   const nav = document.querySelector('.site-nav');
   const page = location.pathname.split('/').pop() || 'index.html';
+  if (page === 'explore.html' && !location.search) return location.replace(project.exploreHref);
 
   function element(tag, text, className) {
     const node = document.createElement(tag);
@@ -14,7 +15,8 @@ async function renderSite() {
   }
   function link({ label, href }, className) {
     const node = element('a', label, className);
-    node.href = href;
+    // One saved explorer view for every link to the data explorer.
+    node.href = href === 'explore.html' ? project.exploreHref : href;
     return node;
   }
 
@@ -63,13 +65,24 @@ async function renderSite() {
       figure.append(image);
       const caption = element('figcaption');
       const legend = element('p', undefined, 'map-meta');
-      legend.append(element('span', undefined, map.symbol), map.legend);
+      for (const key of map.legend) legend.append(element('span', undefined, key.symbol), key.label);
       const description = element('p', map.description);
       if (map.full) description.append(' ', link({ href: map.full, label: map.linkLabel }));
       caption.append(legend, element('h2', map.heading), description);
       figure.append(caption);
       maps.append(figure);
     }
+
+    const model = document.getElementById('approach');
+    model.append(element('h2', overview.model.heading), element('p', overview.model.intro, 'lead'),
+      element('p', overview.model.equation, 'equation'));
+    const parts = element('div', undefined, 'model-parts');
+    for (const item of overview.model.items) {
+      const part = element('article');
+      part.append(element('h3', item.title), element('p', item.text));
+      parts.append(part);
+    }
+    model.append(parts);
 
     const routes = document.getElementById('explore-project');
     routes.setAttribute('aria-label', overview.routesLabel);

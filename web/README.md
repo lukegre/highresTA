@@ -15,7 +15,7 @@ Set the public dataset URL in [the viewer TOML](viewer/explorer.toml) and [rebui
 | `tokens.css` | RdYlBu palette and light/dark tokens | Yes, for colours |
 | `style.css`, `app.js` | Layout and page renderer | Rarely |
 | `uncertainty.css`, `uncertainty.js` | Interactive uncertainty explorer and charts | Rarely |
-| `method.html`, `method.css`, `method.js` | Production method and interactive held-out bottle example | Yes |
+| `method.html`, `method.css` | Method page shell and its styles | Yes |
 
 ## Hosting on RenkuLab
 
@@ -31,12 +31,18 @@ Test the app command locally:
 
 Edit `project.links` for the shared primary navigation and `overview.sectionNav` for landing-page anchors. `overview.maps` pairs each source image and optional full-resolution link with its caption, legend, and alt text. Edit `comparison.lineage` to change each run’s parent and description of what changed. Page copy updates on reload. Measured scores and saved predictions are kept in their source data, and upstream viewer configuration lives in TOML.
 
-Each section in `content.json` has `blocks`, rendered in order. Text supports `**bold**`, `` `code` ``
+Each section in `content.json` has `blocks`, rendered in order. Text supports `**bold**`, `` `code` ``, `[label](https://…)` links (http/https only, new tab)
 and `{{path.to.value|fmt}}` placeholders that read from `data.json` (`fmt`: `int`, `pct`, or a number of decimals).
+`equation` items are LaTeX, rendered with KaTeX from cdnjs (the raw string is shown if it fails to load).
 
-Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`, `funnel`,
-`split-explorer`, `member-grid`, `uncertainty-explorer`, `variance-decomposition`, `spread-vs-error`,
-`ensemble-growth`. Reorder, remove or add blocks freely.
+Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`,
+`details` (collapsed `<details>`; `title` + nested `blocks`), `cleaning-steps` (`items`: `name`, `body`; numbers
+come from `data.funnel` in the same order), `split-explorer`, `member-grid` (`rows_label`, `rows_note`,
+`cols_label`, `cols_note`, `hint`),
+`uncertainty-explorer`, `uncertainty-budget`, `spread-vs-error`, `ensemble-growth`. Reorder, remove or add blocks freely.
+
+Clicking a member cell, a split label or "Members of this split" opens a popup table of those members (MAE, never RMSE).
+The hero's open-ocean MAE comes from `data.json` → `regional_scores.open_ocean` (bottom depth > 500 m and |lat| < 60°).
 
 ## Current methods and result provenance
 
@@ -44,8 +50,7 @@ The method page describes the split-wise Rashomon design: one Optuna
 study per split, feature omissions, and seven diverse near-optimal trials
 refitted per split. `data.json` currently contains the completed
 `highresTA-stacked-salinity-20261109` run (1982–2021), using GLODAP and CARIMED
-observations and a gridded salinity stack. The method page identifies the
-source run and computes its worked bottle estimates from saved held-out
+observations and a gridded salinity stack. The method page draws its model schematic from saved held-out
 predictions. The salinity baseline is reproduced by fitting degree-one OLS on each split’s training observations and weighting those fits by member count.
 
 After a new run has finished training **and assembly**, regenerate the results:

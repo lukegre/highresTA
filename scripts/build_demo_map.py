@@ -26,8 +26,8 @@ def main():
     p.add_argument('--group', default=None, help='Optional Zarr group, e.g. pyramid level')
     p.add_argument('--nearest', action='store_true', help='Use the nearest available time instead of requiring an exact date')
     p.add_argument('--output-dir', type=Path, default=WEB / 'maps', help='Destination for PNG and WebP')
-    p.add_argument('--vmin', type=float, default=1900)
-    p.add_argument('--vmax', type=float, default=2500)
+    p.add_argument('--vmin', type=float, default=2146)
+    p.add_argument('--vmax', type=float, default=2436)
     p.add_argument('--update-site', action='store_true', help='Update overview.maps[1] in web/content.json')
     args = p.parse_args()
     if args.vmin >= args.vmax:
@@ -72,13 +72,12 @@ def main():
     x[np.r_[False, np.abs(np.diff(x)) > 180]] = np.nan
     fig, ax = plt.subplots(figsize=(14, 7), layout='constrained')
     fig.patch.set_facecolor('#f8fafb')
-    ax.set_facecolor('#e3e8e8')
-    im = ax.pcolormesh(da.lon, da.lat, da, cmap='viridis', vmin=args.vmin, vmax=args.vmax, shading='nearest', rasterized=True)
-    ax.plot(x, y, color='#536971', lw=.32)
+    ax.set_facecolor('#3f5457')  # land; matches --map-land in web/site.css
+    im = ax.pcolormesh(da.lon, da.lat, da, cmap='RdYlBu_r', vmin=args.vmin, vmax=args.vmax, shading='nearest', rasterized=True)
+    ax.plot(x, y, color='#3f5457', lw=.32)
     ax.set(xlim=(-180, 180), ylim=(-90, 90), xlabel='Longitude', ylabel='Latitude')
     ax.set_xticks([-180, -120, -60, 0, 60, 120, 180])
     ax.set_yticks([-60, -30, 0, 30, 60])
-    ax.grid(color='white', alpha=.22, lw=.5)
     ax.set_title(f'Estimated surface total alkalinity | {display}', loc='left', fontsize=17, fontweight='bold', color='#173b49', pad=14)
     bar = fig.colorbar(im, ax=ax, orientation='horizontal', pad=.11, shrink=.68, aspect=38, extend='both')
     bar.set_label('Total alkalinity (µmol kg⁻¹)')
@@ -97,9 +96,9 @@ def main():
         content_path = WEB / 'content.json'
         content = json.loads(content_path.read_text())
         card = content['overview']['maps'][1]
-        card.update(image=Path(os.path.relpath(thumb, WEB.resolve())).as_posix(), full=Path(os.path.relpath(full, WEB.resolve())).as_posix(),
+        card.update(image=Path(os.path.relpath(thumb, WEB.resolve())).as_posix(),
                     alt=f'Estimated surface total alkalinity on {display}.',
-                    legend=f'{args.vmin:,.0f} to {args.vmax:,.0f} µmol kg⁻¹',
+                    legend=[{'symbol': 'gradient', 'label': f'{args.vmin:,.0f} to {args.vmax:,.0f} µmol kg⁻¹'}],
                     description=f'Surface alkalinity on {display}, from the stored talk_median model field.')
         content_path.write_text(json.dumps(content, ensure_ascii=False, indent=2) + '\n')
     print(f'Selected {actual.isoformat()}\nFull map: {full}\nThumbnail: {thumb}')

@@ -5,7 +5,6 @@ const app = {
   data: null,
   content: null,
   animateOnScroll: new Map(),
-  selectedMember: 0,
 
   async init() {
     try {
@@ -59,13 +58,11 @@ const app = {
       nav.appendChild(a);
     });
 
-    // Hero
+    // Hero: lead and headline numbers (no title)
     const hero = document.getElementById('hero');
-    const heroHTML = `
+    hero.innerHTML = `
       <div class="section__inner">
         <div class="hero-content">
-          <div class="hero-eyebrow">${this.escape(this.content.hero.eyebrow)}</div>
-          <h1 class="hero-headline">${this.escape(this.content.hero.headline)}</h1>
           <p class="hero-lead">${this.md(this.content.hero.lead, ctx)}</p>
           <div class="hero-stats">
             ${this.content.hero.stats.map(stat => `
@@ -79,25 +76,6 @@ const app = {
         </div>
       </div>
     `;
-    hero.innerHTML = heroHTML;
-    const resultsNotice = document.createElement('div');
-    resultsNotice.className = 'callout callout--info results-notice';
-    resultsNotice.setAttribute('role', 'note');
-    const currentResults = this.data.run.method === 'rashomon';
-    const noticeTitle = document.createElement('strong');
-    const copy = this.content.ui || {};
-    noticeTitle.textContent = currentResults ? copy.current_results_title : copy.historical_results_title;
-    const noticeBody = document.createElement('p');
-    const years = this.data.run.years.join('–');
-    noticeBody.textContent = (currentResults ? copy.current_results_body : copy.historical_results_body)
-      .replace('{run}', this.data.run.name).replace('{years}', years);
-    const noticeContent = document.createElement('div');
-    noticeContent.className = 'callout-content';
-    noticeTitle.className = 'callout-title';
-    noticeBody.className = 'callout-body';
-    noticeContent.append(noticeTitle, noticeBody);
-    resultsNotice.appendChild(noticeContent);
-    hero.querySelector('.section__inner').appendChild(resultsNotice);
 
     // Content sections
     const contentDiv = document.getElementById('content');
@@ -118,22 +96,7 @@ const app = {
       `;
       inner.appendChild(sectionHeader);
 
-      // Render blocks
-      section.blocks.forEach(block => {
-        try {
-          const blockEl = this.renderBlock(block, ctx);
-          if (blockEl) {
-            inner.appendChild(blockEl);
-            this.animateOnScroll.set(blockEl, true);
-          }
-        } catch (err) {
-          console.error(`Error rendering block type "${block.type}":`, err);
-          const errorNote = document.createElement('div');
-          errorNote.className = 'block-error';
-          errorNote.textContent = `Error rendering ${block.type} block`;
-          inner.appendChild(errorNote);
-        }
-      });
+      this.renderBlocks(section.blocks, inner, ctx);
 
       sectionEl.appendChild(inner);
       contentDiv.appendChild(sectionEl);
@@ -143,17 +106,35 @@ const app = {
     const footer = document.getElementById('footer');
     footer.innerHTML = `
       <div class="section__inner">
-        <p>${this.escape(this.content.site.footer)}</p>
+        <p>${this.tpl(this.escape(this.content.site.footer), ctx)}</p>
       </div>
     `;
+  },
+
+  renderBlocks(blocks, parent, ctx) {
+    blocks.forEach(block => {
+      try {
+        const blockEl = this.renderBlock(block, ctx);
+        if (blockEl) {
+          parent.appendChild(blockEl);
+          this.animateOnScroll.set(blockEl, true);
+        }
+      } catch (err) {
+        console.error(`Error rendering block type "${block.type}":`, err);
+        const errorNote = document.createElement('div');
+        errorNote.className = 'block-error';
+        errorNote.textContent = `Error rendering ${block.type} block`;
+        parent.appendChild(errorNote);
+      }
+    });
   },
 
   renderBlock(block, ctx) {
     const container = document.createElement('div');
     container.className = `block block--${block.type}`;
 
-    // Add title if present
-    if (block.title) {
+    // Add title if present (a details block shows it in its summary)
+    if (block.title && block.type !== 'details') {
       const title = document.createElement('h3');
       title.className = 'block-title';
       title.textContent = block.title;
@@ -174,8 +155,10 @@ const app = {
         return this.renderCallout(container, block, ctx);
       case 'equation':
         return this.renderEquation(container, block, ctx);
-      case 'funnel':
-        return this.renderFunnel(container, block, ctx);
+      case 'details':
+        return this.renderDetails(container, block, ctx);
+      case 'cleaning-steps':
+        return this.renderCleaningSteps(container, block, ctx);
       case 'split-explorer':
         return this.renderSplitExplorer(container, block, ctx);
       case 'member-grid':
@@ -288,57 +271,67 @@ const app = {
     return container;
   },
 
-  renderEquation(container, block, ctx) {
-    const code = document.createElement('pre');
-    code.className = 'equation';
-    code.innerHTML = block.items.map(item => this.escape(item)).join('\n\n');
-    container.appendChild(code);
+  renderDetails(container, block, ctx) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = block.title;
+    const body = document.createElement('div');
+    body.className = 'details-body';
+    this.renderBlocks(block.blocks, body, ctx);
+    details.append(summary, body);
+    container.appendChild(details);
     return container;
   },
 
-  renderFunnel(container, block, ctx) {
-    const funnel = this.data.funnel;
-    const maxRows = funnel[0].rows;
-
-    const funnelDiv = document.createElement('div');
-    funnelDiv.className = 'funnel';
-
-    funnel.forEach((step, idx) => {
-      const ratio = step.rows / maxRows;
-      const retained = ((step.rows / maxRows) * 100).toFixed(1);
-      const rampStops = [10, 8, 3, 2, 0]; // RdYlBu without the pale yellow stops
-      const stopIdx = rampStops[Math.round(idx * (rampStops.length - 1) / Math.max(1, funnel.length - 1))];
-      const color = getComputedStyle(document.documentElement).getPropertyValue(`--rdylbu-${stopIdx}`).trim();
-
-      const bar = document.createElement('div');
-      bar.className = 'funnel-bar';
-      bar.style.setProperty('--width', `${ratio * 100}%`);
-      bar.style.setProperty('--color', color);
-      bar.innerHTML = `
-        <div class="funnel-label">
-          <div class="funnel-step">${this.escape(step.step)}</div>
-          <div class="funnel-stats">
-            <span>${this.formatInt(step.rows)} rows</span>
-            <span>${retained}% retained</span>
-            <span>${step.cruises} cruises</span>
-          </div>
-        </div>
-      `;
-      funnelDiv.appendChild(bar);
+  renderEquation(container, block, ctx) {
+    // Items are LaTeX; fall back to the raw string if KaTeX did not load
+    block.items.forEach(item => {
+      const line = document.createElement('div');
+      line.className = 'equation';
+      if (window.katex) katex.render(item, line, { displayMode: true, throwOnError: false });
+      else line.textContent = item;
+      container.appendChild(line);
     });
+    return container;
+  },
 
-    container.appendChild(funnelDiv);
+  renderCleaningSteps(container, block, ctx) {
+    // One row per cleaning step: text from content, numbers from data.funnel (same order)
+    const funnel = this.data.funnel;
+    const columns = this.content.ui.cleaning_columns;
+    const rows = block.items.map((item, idx) => {
+      const step = funnel[idx];
+      const pct = (step.rows / funnel[0].rows * 100).toFixed(0);
+      return `
+        <tr>
+          <th scope="row">${this.escape(item.name)}</th>
+          <td>${this.md(item.body, ctx)}</td>
+          <td class="cleaning-rows">
+            <span>${this.formatInt(step.rows)} <small>${pct} %</small></span>
+            <span class="cleaning-bar"><span style="width: ${pct}%"></span></span>
+          </td>
+          <td class="cleaning-cruises">${step.cruises}</td>
+        </tr>`;
+    });
+    container.innerHTML = `
+      <div class="table-wrapper">
+        <table class="data-table cleaning-table">
+          <thead><tr>${columns.map(col => `<th>${this.escape(col)}</th>`).join('')}</tr></thead>
+          <tbody>${rows.join('')}</tbody>
+        </table>
+      </div>`;
     return container;
   },
 
   renderSplitExplorer(container, block, ctx) {
     const blocks = this.data.blocks;
     const ui = this.content.ui;
+    const nMembers = this.data.run.n_members;
 
     const explorer = document.createElement('div');
     explorer.className = 'split-explorer';
 
-    // Split selector
+    // Split selector and member popup button
     const splitControl = document.createElement('div');
     splitControl.className = 'segmented-control';
     splitControl.innerHTML = `<label>${ui.split_label}</label>`;
@@ -347,65 +340,85 @@ const app = {
       btn.textContent = `${i}`;
       btn.className = i === 1 ? 'active' : '';
       btn.setAttribute('aria-pressed', i === 1 ? 'true' : 'false');
-      btn.addEventListener('click', () => this.updateSplitExplorer(i, Number(explorer.dataset.innerFold || 1), explorer));
+      btn.addEventListener('click', () => this.updateSplitExplorer(i, explorer));
       splitControl.appendChild(btn);
     }
+    const membersBtn = document.createElement('button');
+    membersBtn.className = 'members-button';
+    membersBtn.textContent = ui.members_button;
+    membersBtn.addEventListener('click', () => this.showSplitMembers(Number(explorer.dataset.split)));
+    splitControl.appendChild(membersBtn);
     explorer.appendChild(splitControl);
+    const modelsNote = document.createElement('p');
+    modelsNote.className = 'split-models-note';
+    explorer.appendChild(modelsNote);
 
-    // Blocks visualization
+    // Blocks: the test block stands apart and never changes with the selected split
     const visualization = document.createElement('div');
     visualization.className = 'split-visualization';
 
+    const layout = document.createElement('div');
+    layout.className = 'split-layout';
+    const testGroup = document.createElement('div');
+    testGroup.className = 'split-group split-group--test';
+    testGroup.innerHTML = `
+      <div class="group-label">${this.escape(ui.test_label.replace('{n}', nMembers))}</div>
+      <div class="block-tile block-tile--test">
+        <div class="block-label">${ui.block} 0</div>
+        <div class="block-info">
+          <div>${this.formatInt(blocks[0].observations)} ${ui.observations}</div>
+          <div>${blocks[0].cruises} ${ui.cruises}</div>
+        </div>
+      </div>
+      <div class="group-note">${this.escape(ui.test_note)}</div>
+    `;
+    const otherGroup = document.createElement('div');
+    otherGroup.className = 'split-group';
+    otherGroup.innerHTML = `<div class="group-label">${this.escape(ui.other_blocks_label.replace('{last}', blocks.length - 1))}</div>`;
     const blockRow = document.createElement('div');
     blockRow.className = 'blocks-row';
     blockRow.id = 'split-blocks';
-    visualization.appendChild(blockRow);
-
-    // Inner fold selector
-    const innerControl = document.createElement('div');
-    innerControl.className = 'segmented-control';
-    innerControl.innerHTML = `<label>${ui.inner_fold_label}</label>`;
-    for (let i = 1; i <= blocks.length - 2; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = `${i}`;
-      btn.className = i === 1 ? 'active' : '';
-      btn.setAttribute('aria-pressed', i === 1 ? 'true' : 'false');
-      btn.addEventListener('click', () => this.updateSplitExplorer(Number(explorer.dataset.split || 1), i, explorer));
-      innerControl.appendChild(btn);
-    }
-    visualization.appendChild(innerControl);
-
-    // Inner blocks row
-    const innerBlockRow = document.createElement('div');
-    innerBlockRow.className = 'blocks-row inner-blocks';
-    innerBlockRow.id = 'inner-blocks';
-    visualization.appendChild(innerBlockRow);
-
-    // Summary text
-    const summary = document.createElement('p');
-    summary.className = 'split-summary';
-    summary.id = 'split-summary';
-    visualization.appendChild(summary);
+    otherGroup.appendChild(blockRow);
+    layout.append(testGroup, otherGroup);
+    // Blocks stacked on the left, map of the same split on the right
+    const main = document.createElement('div');
+    main.className = 'split-main';
+    main.appendChild(layout);
+    visualization.appendChild(main);
 
     explorer.appendChild(visualization);
+
+    // Map of sample locations coloured by their role in the selected split
+    const map = this.data.split_map;
+    if (map) {
+      const figure = document.createElement('figure');
+      figure.className = 'split-map';
+      const points = map.lat.map((lat, i) => `<circle data-block="${map.block[i] ?? ''}" cx="${map.lon[i]}" cy="${-lat}" r="0.9"/>`);
+      // test locations last so they sit on top
+      const test = points.filter((_, i) => map.block[i] === 0), rest = points.filter((_, i) => map.block[i] !== 0);
+      figure.innerHTML = `<svg viewBox="-180 -90 360 180" role="img" aria-label="${this.escape(ui.split_map_title)}">
+          <image href="maps/land.png" x="-180" y="-90" width="360" height="180" preserveAspectRatio="none"/>${rest.join('')}${test.join('')}</svg>
+        <figcaption></figcaption>
+        <p class="split-map__note">${this.md(ui.split_map_note, ctx)}</p>`;
+      main.appendChild(figure);
+    }
     container.appendChild(explorer);
 
     // Initial render
-    this.updateSplitExplorer(1, 1, explorer);
+    this.updateSplitExplorer(1, explorer);
 
     return container;
   },
 
-  updateSplitExplorer(split, innerFold, container) {
+  updateSplitExplorer(split, container) {
     const ui = this.content.ui;
     container.dataset.split = split;
-    container.dataset.innerFold = innerFold;
     const blocks = this.data.blocks;
     const testBlock = 0;
     const validationBlock = split;
 
     // Update split buttons
-    const splitBtns = container.querySelectorAll('.segmented-control')[0].querySelectorAll('button');
+    const splitBtns = container.querySelectorAll('.segmented-control')[0].querySelectorAll('button:not(.members-button)');
     splitBtns.forEach((btn, idx) => {
       if (idx + 1 === split) {
         btn.classList.add('active');
@@ -416,12 +429,13 @@ const app = {
       }
     });
 
-    // Render main blocks
+    // Render validation and training blocks (the test block is drawn once, apart)
     const blockRow = container.querySelector('#split-blocks');
     blockRow.innerHTML = '';
     blocks.forEach((block, idx) => {
+      if (idx === testBlock) return;
+      const role = idx === validationBlock ? ui.validation_role : ui.train_role;
       const tile = document.createElement('div');
-      const role = idx === testBlock ? ui.test_role : idx === validationBlock ? ui.validation_role : ui.train_role;
       tile.className = `block-tile block-tile--${role}`;
       tile.innerHTML = `
         <div class="block-label">${ui.block} ${idx}</div>
@@ -433,43 +447,22 @@ const app = {
       blockRow.appendChild(tile);
     });
 
-    // Update inner fold buttons
-    const innerBtns = container.querySelectorAll('.segmented-control')[1].querySelectorAll('button');
-    innerBtns.forEach((btn, idx) => {
-      if (idx + 1 === innerFold) {
-        btn.classList.add('active');
-        btn.setAttribute('aria-pressed', 'true');
-      } else {
-        btn.classList.remove('active');
-        btn.setAttribute('aria-pressed', 'false');
-      }
-    });
+    container.querySelector('.split-models-note').textContent = ui.split_models_note.replace('{k}', split);
 
-    // Render inner blocks (training blocks only)
-    const innerBlockRow = container.querySelector('#inner-blocks');
-    innerBlockRow.innerHTML = '';
-    const trainingBlocks = blocks.filter((_, idx) => idx !== testBlock && idx !== validationBlock);
-    trainingBlocks.forEach((block, idx) => {
-      const heldOutBlock = (idx + 1) === innerFold ? idx + 1 : null;
-      const isHeldOut = (idx + 1) === innerFold;
-      const tile = document.createElement('div');
-      tile.className = `block-tile block-tile--train ${isHeldOut ? 'held-out' : 'fit'}`;
-      const role = isHeldOut ? ui.heldout_for_early_stopping : ui.fit_role;
-      tile.innerHTML = `
-        <div class="block-label">${ui.block} ${block.block} <span class="role">${role}</span></div>
-        <div class="block-info">
-          <div>${this.formatInt(block.observations)} ${ui.observations}</div>
-        </div>
-      `;
-      innerBlockRow.appendChild(tile);
-    });
-
-    // Update summary
-    const summary = container.querySelector('#split-summary');
-    const trainBlocks = blocks.filter((_, idx) => idx !== testBlock && idx !== validationBlock).map(b => b.block).join(', ');
-    const trainObs = blocks.filter((_, idx) => idx !== testBlock && idx !== validationBlock).reduce((sum, b) => sum + b.observations, 0);
-    summary.textContent = ui.split_summary.replace('{split}', split).replace('{blocks}', trainBlocks)
-      .replace('{observations}', this.formatInt(trainObs)).replace('{validation}', validationBlock).replace('{test}', testBlock);
+    // Recolour the map: test never changes, the validation block follows the split
+    const figure = container.querySelector('.split-map');
+    if (figure) {
+      const hasBlocks = this.data.split_map.block.some(b => b > 0);
+      figure.querySelectorAll('circle').forEach(c => {
+        c.setAttribute('class', c.dataset.block === '0' ? 'is-test' : Number(c.dataset.block) === split ? 'is-validation' : 'is-train');
+      });
+      const key = (cls, text) => `<span class="split-map__key ${cls}"></span>${this.escape(text)}`;
+      figure.querySelector('figcaption').innerHTML = [
+        key('is-test', ui.split_map_test.replace('{n}', this.data.run.n_members)),
+        hasBlocks ? key('is-validation', ui.split_map_validation.replace('{k}', split)) : '',
+        key('is-train', hasBlocks ? ui.split_map_train : ui.split_map_pool),
+      ].join(' ');
+    }
   },
 
   renderMemberGrid(container, block, ctx) {
@@ -481,45 +474,36 @@ const app = {
     const gridContainer = document.createElement('div');
     gridContainer.className = 'member-grid-container';
 
-    // Color legend
-    const rmsValues = members.map(m => m.test.rmse);
-    const minRmse = Math.min(...rmsValues);
-    const maxRmse = Math.max(...rmsValues);
+    // The two axes are the two sources of diversity
+    const axes = document.createElement('dl');
+    axes.className = 'grid-axes';
+    axes.innerHTML = `
+      <dt>↓ ${this.escape(block.rows_label)}</dt><dd>${this.md(block.rows_note, ctx)}</dd>
+      <dt>→ ${this.escape(block.cols_label)}</dt><dd>${this.md(block.cols_note, ctx)}</dd>
+    `;
+    gridContainer.appendChild(axes);
 
+    // Cells are coloured by test MAE
+    const maes = members.map(m => m.test.mae);
+    const minMae = Math.min(...maes);
+    const maxMae = Math.max(...maes);
     const legend = document.createElement('div');
-    legend.className = 'rmse-legend';
+    legend.className = 'grid-legend';
     legend.innerHTML = `
-      <div class="legend-label">${ui.member_detail.rmse}</div>
+      <div class="legend-label">${this.escape(ui.mae_legend)}</div>
       <div class="legend-gradient">
-        <div class="legend-tick" style="left: 0%">${minRmse.toFixed(1)}</div>
-        <div class="legend-tick" style="left: 100%">${maxRmse.toFixed(1)}</div>
+        <div class="legend-tick" style="left: 0%">${minMae.toFixed(1)}</div>
+        <div class="legend-tick" style="left: 100%">${maxMae.toFixed(1)}</div>
       </div>
     `;
     gridContainer.appendChild(legend);
 
-    // Summary stats
-    const rmseSorted = [...rmsValues].sort((a, b) => a - b);
-    const midpoint = Math.floor(rmseSorted.length / 2);
-    const medianRmse = rmseSorted.length % 2
-      ? rmseSorted[midpoint]
-      : (rmseSorted[midpoint - 1] + rmseSorted[midpoint]) / 2;
-    const stats = document.createElement('div');
-    stats.className = 'member-summary-stats';
-    stats.innerHTML = `
-      <div>${ui.min_rmse.replace('{value}', minRmse.toFixed(1))}</div>
-      <div>${ui.median_rmse.replace('{value}', medianRmse.toFixed(1))}</div>
-      <div>${ui.max_rmse.replace('{value}', maxRmse.toFixed(1))}</div>
-    `;
-    gridContainer.appendChild(stats);
-
-    // Grid wrapper with scroll
     const gridWrapper = document.createElement('div');
     gridWrapper.className = 'member-grid-wrapper';
-
     const gridContent = document.createElement('div');
     gridContent.className = 'member-grid';
 
-    // Headers
+    // Column headers
     const headerRowTop = document.createElement('div');
     headerRowTop.className = 'grid-row header-row';
     const cornerCell = document.createElement('div');
@@ -533,107 +517,87 @@ const app = {
     }
     gridContent.appendChild(headerRowTop);
 
-    // Data rows
+    // One row per split
     for (let s = 1; s <= splits; s++) {
       const row = document.createElement('div');
       row.className = 'grid-row';
 
-      // Row header
-      const rowHeader = document.createElement('div');
+      const rowHeader = document.createElement('button');
       rowHeader.className = 'grid-cell row-header';
       rowHeader.textContent = `Split ${s}`;
+      rowHeader.addEventListener('click', () => this.showSplitMembers(s));
       row.appendChild(rowHeader);
 
-      // Data cells
       for (let r = 0; r < replicates; r++) {
         const member = members.find(m => m.split === s && m.replicate === r);
-        if (member) {
-          const rmse = member.test.rmse;
-          const color = this.rdylbu((rmse - minRmse) / (maxRmse - minRmse), true);
-          const cell = document.createElement('button');
-          cell.className = 'grid-cell data-cell';
-          cell.style.setProperty('--cell-color', color);
-          cell.innerHTML = `<span>${rmse.toFixed(1)}</span>`;
-          cell.addEventListener('click', () => this.selectMember(member, gridContainer));
-          cell.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') this.selectMember(member, gridContainer);
-          });
-          row.appendChild(cell);
-        }
+        if (!member) continue;
+        const cell = document.createElement('button');
+        cell.className = 'grid-cell data-cell';
+        cell.style.setProperty('--cell-color', this.rdylbu((member.test.mae - minMae) / (maxMae - minMae), true));
+        cell.textContent = member.test.mae.toFixed(1);
+        cell.addEventListener('click', () => this.showMembers(
+          [member], ui.member_dialog.member_title.replace('{split}', s).replace('{index}', r)));
+        row.appendChild(cell);
       }
-
       gridContent.appendChild(row);
     }
 
     gridWrapper.appendChild(gridContent);
     gridContainer.appendChild(gridWrapper);
 
-    // Detail panel
-    const detailPanel = document.createElement('div');
-    detailPanel.className = 'member-detail-panel';
-    detailPanel.id = 'member-detail';
-    gridContainer.appendChild(detailPanel);
-
-    // Initial selection
-    this.selectMember(members[0], gridContainer);
+    const hint = document.createElement('p');
+    hint.className = 'grid-hint';
+    hint.textContent = block.hint;
+    gridContainer.appendChild(hint);
 
     container.appendChild(gridContainer);
     return container;
   },
 
-  selectMember(member, container) {
-    this.selectedMember = member;
+  showSplitMembers(split) {
+    const members = this.data.members.filter(m => m.split === split);
+    this.showMembers(members, this.content.ui.member_dialog.split_title.replace('{split}', split));
+  },
 
-    const detailPanel = container.querySelector('#member-detail');
-    detailPanel.innerHTML = `
-      <div class="detail-header">
-        <h4>${this.escape(member.name)}</h4>
-        <div class="detail-meta">Seed: ${member.seed}</div>
+  showMembers(members, title) {
+    // One shared popup; shows a table with one row per member (MAE only, no RMSE)
+    const copy = this.content.ui.member_dialog;
+    const fixed = (value, decimals) => value == null ? '–' : Number(value).toFixed(decimals);
+    const columns = [
+      ['member', m => m.replicate],
+      ['trial', m => m.trial_number ?? '–'],
+      ['loss_rank', m => m.loss_rank ?? '–'],
+      ['dropped', m => this.escape((m.dropped_features || []).join(', ') || copy.none)],
+      ['depth', m => fixed(m.params.depth, 0)],
+      ['learning_rate', m => fixed(m.params.learning_rate, 3)],
+      ['l2_leaf_reg', m => fixed(m.params.l2_leaf_reg, 2)],
+      ['iterations', m => m.iterations],
+      ['inner_cv_loss', m => fixed(m.inner_cv_loss, 3)],
+      ...(members.some(m => m.validation.mae != null) ? [['validation_mae', m => fixed(m.validation.mae, 1)]] : []),
+      ['test_mae', m => fixed(m.test.mae, 1)],
+      ['coverage', m => fixed(m.test.coverage80 * 100, 1) + ' %']
+    ];
+
+    if (!this.dialog) {
+      this.dialog = document.createElement('dialog');
+      this.dialog.className = 'member-dialog';
+      // A click on the backdrop (the dialog element itself) closes it
+      this.dialog.addEventListener('click', e => { if (e.target === this.dialog) this.dialog.close(); });
+      document.body.appendChild(this.dialog);
+    }
+    this.dialog.innerHTML = `
+      <div class="dialog-header">
+        <h4>${this.escape(title)}</h4>
+        <form method="dialog"><button class="dialog-close">${this.escape(copy.close)}</button></form>
       </div>
-
-      <div class="detail-section">
-        <h5>Hyperparameters</h5>
-        <dl class="detail-list">
-          <dt>Depth</dt><dd>${member.params.depth.toFixed(1)}</dd>
-          <dt>L2 leaf reg</dt><dd>${member.params.l2_leaf_reg.toFixed(4)}</dd>
-          <dt>Learning rate</dt><dd>${member.params.learning_rate.toFixed(4)}</dd>
-          ${member.params.min_data_in_leaf == null ? '' : `<dt>Min data in leaf</dt><dd>${member.params.min_data_in_leaf.toFixed(0)}</dd>`}
-          <dt>Random strength</dt><dd>${member.params.random_strength.toFixed(4)}</dd>
-        </dl>
-      </div>
-
-      ${member.trial_number == null ? '' : `
-      <div class="detail-section">
-        <h5>Trial selection</h5>
-        <dl class="detail-list">
-          <dt>Trial</dt><dd>${member.trial_number}</dd>
-          <dt>Loss rank</dt><dd>${member.loss_rank}</dd>
-          <dt>Selection</dt><dd>${member.in_rashomon_set ? 'Within Rashomon tolerance' : 'Next-best fill-in'}</dd>
-          <dt>Dropped features</dt><dd>${this.escape(member.dropped_features.join(', ') || 'None')}</dd>
-        </dl>
-      </div>`}
-      <div class="detail-section">
-        <h5>Training</h5>
-        <dl class="detail-list">
-          <dt>Iterations</dt><dd>${member.iterations}</dd>
-          <dt>Inner CV loss</dt><dd>${member.inner_cv_loss.toFixed(3)}</dd>
-          <dt>Training rows</dt><dd>${this.formatInt(member.n_train)}</dd>
-          <dt>Training cruises</dt><dd>${member.cruises_train}</dd>
-          <dt>Validation rows</dt><dd>${this.formatInt(member.n_validation)}</dd>
-        </dl>
-      </div>
-
-      <div class="detail-section">
-        <h5>Test scores</h5>
-        <dl class="detail-list">
-          <dt>RMSE</dt><dd>${member.test.rmse.toFixed(2)} µmol/kg</dd>
-          <dt>MAE</dt><dd>${member.test.mae.toFixed(2)} µmol/kg</dd>
-          <dt>CRPS</dt><dd>${member.test.crps.toFixed(3)}</dd>
-          <dt>80% coverage</dt><dd>${(member.test.coverage80 * 100).toFixed(1)}%</dd>
-          <dt>Validation RMSE</dt><dd>${member.validation.rmse.toFixed(2)} µmol/kg</dd>
-        </dl>
+      <div class="table-wrapper">
+        <table class="data-table">
+          <thead><tr>${columns.map(([key]) => `<th>${this.escape(copy.columns[key])}</th>`).join('')}</tr></thead>
+          <tbody>${members.map(m => `<tr>${columns.map(([, value]) => `<td>${value(m)}</td>`).join('')}</tr>`).join('')}</tbody>
+        </table>
       </div>
     `;
+    this.dialog.showModal();
   },
 
   // Helper functions
@@ -672,6 +636,9 @@ const app = {
     // Then parse markdown-like syntax
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
     html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // [label](https://...) links, http(s) only, opened in a new tab
+    html = html.replace(/\[([^\]]+)\]\((https?:\/\/[^)\s"]+)\)/g,
+      '<a href="$2" target="_blank" rel="noopener">$1</a>');
     return html;
   },
 
@@ -727,23 +694,15 @@ const app = {
   },
 
   setupScrollSpy() {
-    const sections = document.querySelectorAll('.section');
+    const sections = [...document.querySelectorAll('.section')];
     const navLinks = document.querySelectorAll('.nav-link');
-
-    const observer = new IntersectionObserver(entries => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          navLinks.forEach(link => {
-            link.classList.remove('active');
-            if (link.getAttribute('href') === `#${entry.target.id}`) {
-              link.classList.add('active');
-            }
-          });
-        }
-      });
-    }, { threshold: 0.3 });
-
-    sections.forEach(section => observer.observe(section));
+    // Active = the last section whose top has passed under the sticky header
+    const update = () => {
+      const current = sections.filter(s => s.getBoundingClientRect().top <= 180).pop();
+      navLinks.forEach(link => link.classList.toggle('active', !!current && link.getAttribute('href') === `#${current.id}`));
+    };
+    window.addEventListener('scroll', update, { passive: true });
+    update();
   },
 
   setupAnimations() {
