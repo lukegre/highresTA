@@ -440,27 +440,6 @@ main {
   font-size: 13px;
 }
 
-/* Figure */
-.figure-block {
-  margin: 0 0 24px;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  padding: 16px;
-}
-
-.figure-block img {
-  display: block;
-  width: 100%;
-  height: auto;
-}
-
-.figure-block figcaption {
-  margin-top: 12px;
-  color: var(--text-muted);
-  font-size: 14px;
-}
-
 /* Callout */
 .callout {
   display: flex;

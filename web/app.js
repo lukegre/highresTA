@@ -163,8 +163,6 @@ const app = {
         return this.renderSplitExplorer(container, block, ctx);
       case 'member-grid':
         return this.renderMemberGrid(container, block, ctx);
-      case 'figure':
-        return this.renderFigure(container, block, ctx);
       default:
         // Try to call external renderer
         if (window.BLOCKS && window.BLOCKS[block.type]) {
@@ -174,30 +172,6 @@ const app = {
         console.warn(`Unknown block type: ${block.type}`);
         return null;
     }
-  },
-
-  renderFigure(container, block, ctx) {
-    const figure = document.createElement('figure');
-    figure.className = 'figure-block';
-    const img = document.createElement('img');
-    img.src = block.image;
-    img.alt = block.alt || '';
-    img.loading = 'lazy';
-    if (block.full) {
-      const link = document.createElement('a');
-      link.href = block.full;
-      link.appendChild(img);
-      figure.appendChild(link);
-    } else {
-      figure.appendChild(img);
-    }
-    if (block.caption) {
-      const caption = document.createElement('figcaption');
-      caption.innerHTML = this.md(block.caption, ctx);
-      figure.appendChild(caption);
-    }
-    container.appendChild(figure);
-    return container;
   },
 
   renderText(container, block, ctx) {

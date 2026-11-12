@@ -27,6 +27,12 @@ Test the app command locally:
 
     cd web && RENKU_SESSION_PORT=8000 sh -c "$(sed 's/^web: //' Procfile)"
 
+## Regenerate the sensitivity maps
+
+The Drivers section on the method page reads `sensitivity-data.json`. After running `scripts/spatial_pdp.py` for a run, export it with:
+
+    uv run python web/build_sensitivity.py --run models/<run-folder>
+
 ## Editing content
 
 Edit `project.links` for the shared primary navigation and `overview.sectionNav` for landing-page anchors. `overview.maps` pairs each source image and optional full-resolution link with its caption, legend, and alt text. Edit `comparison.lineage` to change each run’s parent and description of what changed. Page copy updates on reload. Measured scores and saved predictions are kept in their source data, and upstream viewer configuration lives in TOML.
@@ -35,7 +41,7 @@ Each section in `content.json` has `blocks`, rendered in order. Text supports `*
 and `{{path.to.value|fmt}}` placeholders that read from `data.json` (`fmt`: `int`, `pct`, or a number of decimals).
 `equation` items are LaTeX, rendered with KaTeX from cdnjs (the raw string is shown if it fails to load).
 
-Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`, `figure` (`image`, `alt`, `caption`, optional `full` link),
+Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`, `sensitivity-maps` (`data`, `labels`, `units`, `note`, `ui`; one interactive map per predictor from `sensitivity-data.json`),
 `details` (collapsed `<details>`; `title` + nested `blocks`), `cleaning-steps` (`items`: `name`, `body`; numbers
 come from `data.funnel` in the same order), `split-explorer`, `member-grid` (`rows_label`, `rows_note`,
 `cols_label`, `cols_note`, `hint`),
