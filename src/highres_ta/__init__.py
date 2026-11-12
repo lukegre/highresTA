@@ -9,6 +9,7 @@ from .inference import (
     predict,
     select_inference_date,
 )
+from .partial_dependence import spatial_sensitivity, training_feature_stats
 from .quantile_ensemble import QuantileRegressionEnsemble, decompose_variance
 from .quantiles import (
     pinball_loss_by_quantile,
@@ -62,4 +63,6 @@ __all__ = [
     "score_quantile_predictions",
     "score_stations",
     "select_inference_date",
+    "spatial_sensitivity",
+    "training_feature_stats",
 ]
