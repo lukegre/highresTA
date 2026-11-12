@@ -35,7 +35,7 @@ Each section in `content.json` has `blocks`, rendered in order. Text supports `*
 and `{{path.to.value|fmt}}` placeholders that read from `data.json` (`fmt`: `int`, `pct`, or a number of decimals).
 `equation` items are LaTeX, rendered with KaTeX from cdnjs (the raw string is shown if it fails to load).
 
-Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`,
+Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`, `figure` (`image`, `alt`, `caption`, optional `full` link),
 `details` (collapsed `<details>`; `title` + nested `blocks`), `cleaning-steps` (`items`: `name`, `body`; numbers
 come from `data.funnel` in the same order), `split-explorer`, `member-grid` (`rows_label`, `rows_note`,
 `cols_label`, `cols_note`, `hint`),
