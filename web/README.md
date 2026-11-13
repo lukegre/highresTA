@@ -17,7 +17,8 @@ Set the public dataset URL in [the viewer TOML](viewer/explorer.toml) and [rebui
 | `uncertainty.css`, `uncertainty.js` | Interactive uncertainty explorer and charts | Rarely |
 | `sensitivity.js`, `explain.js` | Sensitivity maps; SHAP summary, maps and interactions (styles at the end of `method.css`; `explain.js` needs `sensitivity.js` loaded first) | Rarely |
 | `method.html`, `diagnostics.html`, `uncertainty.html`, `method.css` | Shells for the Method, Uncertainty and Drivers pages; `content.json` sections and nav items carry a `"page"` (default `method`) that picks the shell | Yes |
-| `evaluation.html`, `evaluation.js` | Evaluation page: held-out MAE/RMSE/bias of the gridded-salinity model (model `E`) by validation region, basin, salinity bin and 5-year period, with a locator map; reads `comparison-data.json` and the `evaluation` block of `content.json` | Text in `content.json` |
+| `evaluation.html`, `evaluation.js` | Evaluation page: held-out MAE/RMSE/bias of the gridded-salinity model (model `E`) by validation region, basin, salinity bin and 5-year period, with a locator map; reads `comparison-data.json`, `evaluation-regions.json` and the `evaluation` block of `content.json` | Text in `content.json` |
+| `evaluation-regions.json` | Exact scores for every combination of the Evaluation page's region switches (depth x latitude x Mediterranean), keyed `depth,lat,med`. Regenerate with `uv run python scripts/export_region_scores.py --run models/<run>` (needs `<run>/validation/predictions.parquet`) | Regenerate when the model changes |
 | `report.css`, `plotly-geo-assets.js` | Styles and offline Plotly map assets shared by the Experiments and Evaluation pages | Rarely |
 | `access.html`, `access-repr.html` | Access Data page; `access-repr.html` is the saved `ds._repr_html_()` of the published store (`xr.open_zarr(url, group="0")`), regenerate it when the store changes | Yes |
 

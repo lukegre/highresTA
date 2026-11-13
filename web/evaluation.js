@@ -6,6 +6,8 @@
   const content = await (await fetch("content.json", { cache: "no-store" })).json();
   const COPY = content.comparison, EV = content.evaluation;
   const D = await (await fetch("comparison-data.json")).json();
+  // Exact pooled scores for every combination of the region switches, from per-sample predictions (scripts/export_region_scores.py).
+  const REGION_SCORES = (await (await fetch("evaluation-regions.json")).json()).scores;
   const MODEL = "E";
   const $ = id => document.getElementById(id);
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
@@ -25,17 +27,14 @@
 
   /* ---------------- groups: same definitions as the Experiments page ---------------- */
   // Validation regions are built from switches: depth (deep / coastal) x latitude (high / mid and low), or the Mediterranean.
-  // Neither or both switches of a pair mean "no restriction", so every combination is one of 10 selections (keys below).
+  // Neither or both switches of a pair mean "no restriction"; the selection key lists depth, latitude, then Mediterranean (as in evaluation-regions.json).
   const SWITCHES = [["deep", "Deep ocean"], ["coastal", "Coastal ocean"], ["highlat", "High lat"], ["lowlat", "Mid and low lat"], ["med", "Mediterranean"], ["nomed", "Excl. Mediterranean"]];
   const SW_LABEL = Object.fromEntries(SWITCHES);
   const sw = { deep: false, coastal: false, highlat: false, lowlat: false, med: false, nomed: false };
   const selKey = (s = sw) => {
-    if (s.med) return "med";
     const depth = s.deep === s.coastal ? "" : s.deep ? "deep" : "coastal", lat = s.highlat === s.lowlat ? "" : s.highlat ? "highlat" : "lowlat";
-    const base = [depth, lat].filter(Boolean).join(",") || "all";
-    return !s.nomed ? base : base === "all" ? "nomed" : `${base},nomed`;
+    return [depth, lat, s.med ? "med" : s.nomed ? "nomed" : ""].filter(Boolean).join(",") || "all";
   };
-  const REGIONS = ["all", "deep", "coastal", "highlat", "lowlat", "deep,highlat", "deep,lowlat", "coastal,highlat", "coastal,lowlat", "med", "nomed"];
   // Rows always shown for the validation regions; any other selection made with the pills is added on top.
   const TABLE_REGIONS = ["deep,lowlat", "all", "highlat", "med"];
   const GROUP_ORDER = {
@@ -50,55 +49,12 @@
   const P = D.pts;
   function regMember(i, key) {
     if (key === "all") return true;
-    if (key === "med") return P.basin[i] === "Mediterranean";
-    if (key === "nomed") return P.basin[i] !== "Mediterranean";
-    const parts = key.split(","), hi = Math.abs(P.lat[i]) > 60, co = P.region[i] === "coastal";
-    return parts.every(k => k === "nomed" ? P.basin[i] !== "Mediterranean" : k === "deep" ? !co : k === "coastal" ? co : k === "highlat" ? hi : !hi);
+    const parts = key.split(","), hi = Math.abs(P.lat[i]) >= 60, co = P.region[i] === "coastal", med = P.basin[i] === "Mediterranean";
+    return parts.every(k => k === "med" ? med : k === "nomed" ? !med : k === "deep" ? !co : k === "coastal" ? co : k === "highlat" ? hi : !hi);
   }
   const member = (i, g) => by() === "valregion" ? regMember(i, g) : String(P[by()][i]) === String(g);
 
   /* ---------------- scores per group (pooled test block + out-of-fold) ---------------- */
-  // Region scores exist per row set (test, out-of-fold): pool them exactly from n, MAE, RMSE and bias.
-  function regionScores() {
-    const rows = D.valscores[MODEL].filter(x => x.salinity_product === "stacked");
-    const pool = names => {
-      const parts = rows.filter(x => names.includes(x.region)), n = parts.reduce((t, x) => t + x.n, 0);
-      if (!n) return null;
-      const mean = k => parts.reduce((t, x) => t + x.n * x[k], 0) / n;
-      return { n, mae: mean("mean_absolute_error"), rmse: Math.sqrt(parts.reduce((t, x) => t + x.n * x.root_mean_squared_error ** 2, 0) / n), bias: mean("mean_bias") };
-    };
-    // The four depth x latitude cells are disjoint, so any selection is an exact pool of them.
-    const DEPTH = { deep: 1, coastal: 1 }, LAT = { highlat: 1, lowlat: 1 };
-    // Mediterranean scores exist only as a whole (basin table), so "excluding" it pools the five other basins exactly.
-    const basins = D.heldout.all.basin[MODEL], others = Object.entries(basins).filter(([b]) => b !== "Mediterranean").map(([, v]) => v);
-    const nOther = others.reduce((t, v) => t + v.n, 0), meanOther = k => others.reduce((t, v) => t + v.n * v[k], 0) / nOther;
-    const out = { all: pool(["all"]), med: basins.Mediterranean,
-      nomed: nOther ? { n: nOther, mae: meanOther("mae"), rmse: Math.sqrt(others.reduce((t, v) => t + v.n * v.rmse ** 2, 0) / nOther), bias: meanOther("bias") } : null };
-    for (const key of REGIONS) {
-      if (key === "all" || key === "med" || key === "nomed") continue;
-      const parts = key.split(","), d = parts.filter(k => DEPTH[k]), l = parts.filter(k => LAT[k]);
-      const depths = d.length ? [d[0] === "deep" ? "oceanic" : "coastal"] : ["oceanic", "coastal"];
-      const lats = l.length ? [l[0] === "highlat" ? "> 60deg" : "< 60deg"] : ["< 60deg", "> 60deg"];
-      out[key] = pool(depths.flatMap(dp => lats.map(la => `${dp} & ${la}`)));
-    }
-    for (const k of Object.keys(out)) if (!out[k]) delete out[k];
-    return out;
-  }
-  const REGION_SCORES = regionScores();
-  // "Excl. Mediterranean" combined with depth / latitude: no scores exist for the Mediterranean by depth or latitude, so its share
-  // of the selection is estimated (rows: Mediterranean rows x the fraction of sampled Mediterranean points inside the selection;
-  // scores: the Mediterranean's overall scores) and subtracted from the pooled selection. Approximate; marked in the table.
-  const MED_PTS = P.basin.reduce((t, b) => t + (b === "Mediterranean"), 0);
-  function keyScores(key) {
-    if (REGION_SCORES[key]) return { ...REGION_SCORES[key], approx: false };
-    const parts = key.split(","), base = parts.filter(k => k !== "nomed").join(",");
-    if (parts.at(-1) !== "nomed" || !REGION_SCORES[base]) return null;
-    let inSel = 0;
-    for (let i = 0; i < P.lat.length; i++) if (P.basin[i] === "Mediterranean" && regMember(i, base)) inSel++;
-    const b = REGION_SCORES[base], med = REGION_SCORES.med, nm = Math.min(b.n - 1, Math.round(med.n * inSel / MED_PTS)), n = b.n - nm;
-    const rest = k => (b.n * b[k] - nm * med[k]) / n;
-    return { n, mae: rest("mae"), rmse: Math.sqrt((b.n * b.rmse ** 2 - nm * med.rmse ** 2) / n), bias: rest("bias"), approx: true };
-  }
   const scoresOf = grouping => grouping === "valregion" ? REGION_SCORES : D.heldout.all[grouping][MODEL];
   const overall = D.heldout.all.overall[MODEL];
 
@@ -121,7 +77,6 @@
   const syncSwitches = () => {
     evRegion.querySelectorAll("button").forEach(b => {
       b.setAttribute("aria-pressed", !!sw[b.dataset.s]);
-      b.disabled = sw.med && b.dataset.s !== "med";
     });
   };
   const loadSwitches = key => {
@@ -129,12 +84,12 @@
     syncSwitches();
   };
   evRegion.onclick = e => {
-    const b = e.target.closest("button"); if (!b || b.disabled) return;
+    const b = e.target.closest("button"); if (!b) return;
     const id = b.dataset.s;
     sw[id] = !sw[id];
-    // Scores of the Mediterranean exist only as a whole (no depth or latitude split), so it excludes the other switches.
-    if (id === "med") for (const k in sw) if (k !== id) sw[k] = false;
-    if (id === "nomed") sw.med = false;
+    // Mediterranean and Excl. Mediterranean are opposites, so switching one on switches the other off.
+    if (sw[id] && id === "med") sw.nomed = false;
+    if (sw[id] && id === "nomed") sw.med = false;
     syncSwitches();
     setGroup(selKey());
   };
@@ -193,16 +148,16 @@
   window.addEventListener("scroll", () => { tipEl.hidden = true; }, { passive: true });
 
   function render() {
-    const g = by(), scores = g === "valregion" ? Object.fromEntries(REGIONS.map(k => [k, REGION_SCORES[k]])) : scoresOf(g);
+    const g = by(), scores = scoresOf(g);
     const groups = GROUP_ORDER[g].filter(x => scores[x]?.n > 0);
     // A valregion selection can be a combination that is not a table row (e.g. deep ocean excl. Mediterranean): add its row on top.
-    const extra = g === "valregion" && st.sel && !groups.includes(st.sel) && keyScores(st.sel) ? st.sel : null;
+    const extra = g === "valregion" && st.sel && !groups.includes(st.sel) && REGION_SCORES[st.sel] ? st.sel : null;
     const row = (label, s, attrs = "") => `<tr ${attrs}><td class="name">${label}</td><td class="num">${s.n.toLocaleString("en")}</td>` +
       `<td class="num">${fmt(s.mae)}</td><td class="num">${fmt(s.rmse)}</td><td class="num">${signed(s.bias)}</td></tr>`;
     $("evTable").innerHTML = `<thead><tr><th>${COPY.groupings[g]}</th><th class="num" ${tip("n")}>${METRIC.n.label}</th>` +
       ["mae", "rmse", "bias"].map(k => `<th class="num" ${tip(k)}>${METRIC[k].label}</th>`).join("") + `</tr></thead><tbody>` +
       (g === "valregion" ? "" : row(EV.all_label, overall, 'class="total"')) +
-      (extra ? row(esc(groupLabel(g, extra)) + (keyScores(extra).approx ? " (est.)" : ""), keyScores(extra), `data-g="${esc(extra)}"`) : "") +
+      (extra ? row(esc(groupLabel(g, extra)), REGION_SCORES[extra], `data-g="${esc(extra)}"`) : "") +
       groups.map(x => row(esc(groupLabel(g, x)), scores[x], `data-g="${esc(x)}"${g === "valregion" && x === "all" ? ' class="total"' : ""}`)).join("") + "</tbody>";
     $("evGroupNote").textContent = EV.group_note[g];
     st.groups = groups;

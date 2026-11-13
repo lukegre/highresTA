@@ -23,8 +23,9 @@ from highres_ta.training import resolve_path
 
 app = typer.Typer()
 WEB = Path(__file__).resolve().parent.parent / "web"
-# Mediterranean Sea, excluding the Black Sea; override with --med-box if the page's basin table uses another box.
-MED_BOX = (30.0, 46.0, -6.0, 36.0)  # lat_min, lat_max, lon_min, lon_max
+# Mediterranean Sea, excluding the Black Sea. The west edge (-5.5°E, i.e. east of the Strait of Gibraltar) reproduces the
+# basin table of comparison-data.json exactly: n = 1,206, MAE 52.52 on the "salinity" product.
+MED_BOX = (30.0, 46.0, -5.5, 36.0)  # lat_min, lat_max, lon_min, lon_max
 
 
 def pill_masks(pred: pd.DataFrame, coastal_depth: float, med_box: tuple[float, float, float, float]) -> dict:
@@ -76,7 +77,7 @@ def selection_scores(pred: pd.DataFrame, coastal_depth: float = 500, med_box: tu
 @app.command(help=__doc__)
 def main(
     run: Annotated[Path, typer.Option(help="Model run folder (the one with validation/predictions.parquet).")],
-    salinity_product: Annotated[str, typer.Option(help="Product in predictions.parquet; 'salinity' is the model's native input.")] = "salinity",
+    salinity_product: Annotated[str, typer.Option(help="Product in predictions.parquet; 'stacked' is what the page's region scores (valscores) use; 'salinity' is the in situ salinity run (basin table).")] = "stacked",
     coastal_depth: Annotated[float, typer.Option(help="Bottom depth (m) separating coastal from deep ocean.")] = 500,
     med_box: Annotated[str, typer.Option(help="Mediterranean box 'lat_min,lat_max,lon_min,lon_max'.")] = ",".join(map(str, MED_BOX)),
     out: Annotated[Path, typer.Option(help="Output JSON.")] = WEB / "evaluation-regions.json",

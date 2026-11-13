@@ -1159,11 +1159,11 @@
         "< 500 m"
       ],
       "oceanic & > 60deg": [
-        "Oceanic, |lat| > 60°",
+        "Oceanic, |lat| ≥ 60°",
         "> 500 m"
       ],
       "coastal & > 60deg": [
-        "Coastal, |lat| > 60°",
+        "Coastal, |lat| ≥ 60°",
         "< 500 m"
       ],
       "oceanic": [
@@ -1176,7 +1176,7 @@
       ],
       "> 60deg": [
         "High latitude",
-        "|lat| > 60°"
+        "|lat| ≥ 60°"
       ]
     },
     "overview_title": "Two changes, three models",
@@ -1516,13 +1516,13 @@
     "map_title": "Where the samples are",
     "map_note": "Orange dots are the held-out samples of the selected group (drawn from a random subset of 6,000 held-out rows).",
     "group_note": {
-      "valregion": "Switch on any combination: deep or coastal ocean (500 m depth) and high (|lat| > 60°) or mid and low latitude; both or neither of a pair means no restriction. The Mediterranean (from the basin table) has no depth or latitude split, so it excludes the other switches. Excl. Mediterranean combines with them: alone it is exact (the other basins pooled), with a depth or latitude switch it is an estimate that removes the Mediterranean's share of the selection (its overall scores, apportioned by where its sampled points fall).",
+      "valregion": "Switch on any combination: deep or coastal ocean (500 m depth), high (|lat| ≥ 60°) or mid and low latitude, and the Mediterranean or everything except it; both or neither of a pair means no restriction. Every combination is scored exactly from the per-sample predictions.",
       "basin": "Ocean basins as in the Held-out comparison tab.",
       "salbin": "Bins of the bottle's in-situ salinity.",
       "year": "Five-year periods, labelled by their first year."
     },
     "all_label": "All held-out rows",
-    "footnote": "Bias is predicted minus observed, in µmol kg⁻¹; negative means under-prediction. Region scores pool the test block and out-of-fold rows exactly (from their MAE, RMSE and bias); the other groupings come from the pooled held-out table.",
+    "footnote": "Bias is predicted minus observed, in µmol kg⁻¹; negative means under-prediction. Region scores are computed exactly from the pooled test block and out-of-fold rows, for every combination of the switches; the other groupings come from the pooled held-out table.",
     "groupings": ["valregion", "basin", "salbin", "year"]
   }
 }
