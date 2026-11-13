@@ -167,3 +167,52 @@ nav.site-nav { position: sticky; top: 0; z-index: 120; }
 .sx-ramp { height: 10px; border: 1px solid var(--border); border-radius: 3px; }
 .sx-ticks { display: flex; justify-content: space-between; margin-top: 3px; font-variant-numeric: tabular-nums; }
 .sx-note, .sx-loading { margin: 0 0 24px; font-size: 13px; color: var(--text-muted); }
+
+/* SHAP contributions and interactions (explain.js). Cards reuse .sx-card / .sx-head / .sx-tip / .sx-bar. */
+.ex-interactions { display: grid; gap: 16px; margin: 8px 0 12px; }
+.ex-card { margin: 0; }
+.ex-card .sx-sub[hidden], .ex-ring[hidden], .sx-marker[hidden] { display: none; }
+.ex-controls { display: flex; flex-wrap: wrap; gap: 8px 24px; margin: 0 0 10px; }
+.ex-controls .segmented-control { gap: 8px; }
+.ex-controls .segmented-control button { height: 32px; padding: 0 10px; font-size: 13px; }
+.ex-stage { position: relative; min-width: 0; }
+.ex-stage > svg { display: block; max-width: 100%; touch-action: pan-y; cursor: crosshair; }
+.ex-stage text { font-family: var(--font); fill: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.ex-stage .ex-lab { fill: var(--text); font-size: 13px; font-weight: 600; }
+.ex-stage .ex-mean { font-size: 12px; font-family: var(--font-mono); }
+.ex-stage .ex-head, .ex-stage .ex-axis-label { font-size: 12px; }
+.ex-grid { stroke: var(--border); stroke-width: 1; opacity: .55; }
+.ex-zero { stroke: var(--text-muted); stroke-width: 1.2; }
+.ex-axis, .ex-tickmark, .ex-frame { stroke: var(--text-muted); stroke-width: 1; fill: none; }
+.ex-rowline { stroke: var(--border); stroke-width: 1; stroke-dasharray: 2 3; }
+.ex-sep { stroke: var(--border); stroke-width: 1; }
+.ex-dots circle { fill-opacity: .8; pointer-events: none; }
+.ex-dots .ex-grey { fill-opacity: .4; }
+.ex-ring { fill: none; stroke: var(--text); stroke-width: 1.6; pointer-events: none; }
+.ex-cellring { stroke-width: 2; }
+.ex-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin-top: 6px; font-size: 12px; color: var(--text-muted); }
+.ex-legend-title { font-weight: 600; color: var(--text); margin-right: 2px; }
+.ex-legend-ramp { width: 120px; height: 10px; border: 1px solid var(--border); border-radius: 3px; }
+.ex-legend-grey { display: inline-flex; align-items: center; gap: 5px; margin-left: 10px; }
+.ex-legend-grey i { width: 9px; height: 9px; border-radius: 50%; background: var(--text-muted); opacity: .45; }
+
+.ex-matrix { --lab: clamp(64px, 17vw, 128px); display: grid; grid-template-columns: var(--lab) repeat(var(--n), minmax(0, 1fr)); max-width: 720px; margin: 0 auto; font-variant-numeric: tabular-nums; }
+.ex-col, .ex-row { font-size: 12px; font-weight: 600; color: var(--text); line-height: 1.2; }
+.ex-col { writing-mode: vertical-rl; transform: rotate(180deg); display: flex; align-items: center; justify-content: flex-start; padding: 0 0 6px; white-space: nowrap; }
+.ex-row { display: flex; align-items: center; justify-content: flex-end; text-align: right; padding-right: 6px; }
+.ex-cell { box-sizing: border-box; aspect-ratio: 1; min-width: 0; padding: 0; margin: 0; display: flex; align-items: center; justify-content: center; border: 1px solid var(--surface); border-radius: 0; font: 500 12px/1 var(--font); font-variant-numeric: tabular-nums; cursor: default; }
+.ex-diag { background: var(--surface-2); color: var(--text-muted); font-weight: 700; cursor: default; }
+.ex-link { cursor: pointer; box-shadow: inset 0 0 0 1.5px var(--text-muted); }
+.ex-link:hover, .ex-link:focus-visible { box-shadow: inset 0 0 0 2.5px var(--text); outline: none; }
+.ex-link.ex-selected { box-shadow: inset 0 0 0 3px var(--text); font-weight: 800; }
+.ex-bar { max-width: 720px; margin: 10px auto 0; }
+.ex-bar-ticks { position: relative; height: 16px; margin-top: 3px; font-variant-numeric: tabular-nums; }
+.ex-bar-ticks span { position: absolute; transform: translateX(-50%); }
+.ex-bar-ticks span:first-child { transform: none; }
+.ex-bar-caption { margin-top: 4px; font-size: 12px; color: var(--text-muted); }
+.ex-card .sx-bar .sx-ticks + .ex-bar-caption { margin-top: 6px; }
+@media (max-width: 540px) {
+  .ex-matrix { --lab: 70px; }
+  .ex-col, .ex-row { font-size: 11px; }
+  .ex-cell { font-size: 10.5px; }
+}

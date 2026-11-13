@@ -27,9 +27,10 @@
   <div id="load-error" class="load-error" hidden></div>
 
   <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
-  <!-- Order matters: uncertainty.js and sensitivity.js register block renderers, app.js renders the page. -->
+  <!-- Order matters: uncertainty.js, sensitivity.js and explain.js (needs sensitivity.js) register block renderers, app.js renders the page. -->
   <script src="uncertainty.js"></script>
   <script src="sensitivity.js"></script>
+  <script src="explain.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

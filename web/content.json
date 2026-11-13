@@ -12,7 +12,7 @@
         "href": "method.html"
       },
       {
-        "label": "Comparison",
+        "label": "Diagnostics",
         "href": "comparison.html"
       },
       {
@@ -182,6 +182,10 @@
       {
         "id": "drivers",
         "label": "Drivers"
+      },
+      {
+        "id": "contributions",
+        "label": "Contributions"
       },
       {
         "id": "uncertainty",
@@ -541,8 +545,166 @@
       ]
     },
     {
+      "id": "contributions",
+      "kicker": "06 · Contributions",
+      "title": "What adds up to each estimate",
+      "lead": "SHAP splits every prediction into one contribution per predictor. Salinity carries most of it. Location comes second, and the largest interaction is between salinity and location.",
+      "blocks": [
+        {
+          "type": "text",
+          "body": "For one bottle or one ocean cell, the median estimate equals a **base value** plus one **contribution** per predictor (SHAP values, computed for each of the 42 members and averaged). The base value is the average estimate over the bottles shown, 2282.9 µmol kg⁻¹. A contribution of +10 means that predictor pushes the estimate 10 µmol kg⁻¹ above that average. Salinity includes the linear baseline as well as its share of the boosted residual. **Location** is the sum of the three spherical coordinates (`ncoord_x`, `ncoord_y`, `ncoord_z`), which together say where on the globe a point is."
+        },
+        {
+          "type": "shap-summary",
+          "data": "explain-data.json",
+          "labels": {
+            "salinity": "Salinity",
+            "temperature": "Temperature",
+            "ssh_adt": "Sea surface height",
+            "chl_globcolour": "Chlorophyll",
+            "nitrate": "Nitrate",
+            "phosphate": "Phosphate",
+            "silicate": "Silicate",
+            "bottomdepth": "Bottom depth",
+            "location": "Location"
+          },
+          "units": {
+            "salinity": "",
+            "temperature": "°C",
+            "ssh_adt": "m",
+            "chl_globcolour": "mg m⁻³",
+            "nitrate": "µmol kg⁻¹",
+            "phosphate": "µmol kg⁻¹",
+            "silicate": "µmol kg⁻¹",
+            "bottomdepth": "m"
+          },
+          "note": "Each dot is one bottle (1 500 of 4 000 random bottles explained, 1982–2021); rows are ordered by mean |contribution|, shown at the right. Red dots are high values of the predictor, blue low, relative to all bottles. Grey: location, which has no single value, or a missing predictor. Hover or tap a dot to read it. \"Zoom in\" narrows the axis so the small predictors can be read; dots beyond the axis are drawn at its edge.",
+          "ui": {
+            "loading": "Loading…",
+            "error": "Could not load the figure.",
+            "title": "Contribution of each predictor to the median estimate",
+            "x_label": "Contribution to median TA (µmol kg⁻¹)",
+            "mean_abs_head": "mean |SHAP|",
+            "axis_label": "Axis",
+            "axis_full": "Full range",
+            "axis_zoom": "Zoom in",
+            "legend": "Feature value",
+            "low": "low",
+            "high": "high",
+            "grey": "group or missing value",
+            "feature": "Predictor",
+            "value": "Value",
+            "contribution": "Contribution",
+            "group": "sum of its coordinates",
+            "missing": "missing",
+            "aria": "Beeswarm of the contribution of each predictor to the median alkalinity estimate"
+          }
+        },
+        {
+          "type": "text",
+          "body": "Mean absolute contributions on the bottles, in µmol kg⁻¹: salinity 60.1, location 10.8, nitrate 6.1, sea surface height 6.0, silicate 4.6, temperature 3.9, phosphate 1.8, bottom depth 1.4 and chlorophyll 1.3. The maps below show the same contributions across the ocean, on a 1° grid and averaged over four seasonal dates in 2019. Unlike the sensitivity maps above, they describe the model's estimate at each place, not its response to a nudge."
+        },
+        {
+          "type": "shap-maps",
+          "data": "explain-data.json",
+          "labels": {
+            "salinity": "Salinity",
+            "temperature": "Temperature",
+            "ssh_adt": "Sea surface height",
+            "chl_globcolour": "Chlorophyll",
+            "nitrate": "Nitrate",
+            "phosphate": "Phosphate",
+            "silicate": "Silicate",
+            "bottomdepth": "Bottom depth",
+            "location": "Location"
+          },
+          "units": {
+            "salinity": "",
+            "temperature": "°C",
+            "ssh_adt": "m",
+            "chl_globcolour": "mg m⁻³",
+            "nitrate": "µmol kg⁻¹",
+            "phosphate": "µmol kg⁻¹",
+            "silicate": "µmol kg⁻¹",
+            "bottomdepth": "m"
+          },
+          "note": "Colour: contribution to the median estimate (µmol kg⁻¹) relative to the average over the ocean cells, ordered by mean |contribution|; each map has its own scale (±98th percentile). Hover or tap a map to read values; the ring marks the same place on every map.",
+          "ui": {
+            "loading": "Loading maps…",
+            "error": "Could not load the maps.",
+            "position": "Position",
+            "contribution": "Contribution",
+            "no_value": "Value",
+            "land": "land / no data",
+            "sub": "mean |contribution| {v} µmol kg⁻¹",
+            "aria": "Contribution of {name} to the estimated alkalinity"
+          }
+        },
+        {
+          "type": "text",
+          "body": "Two predictors interact when the effect of one depends on the other. The first figure shows the strength of each pair, as the mean absolute SHAP interaction value, with the main effect of each predictor on the diagonal. The strongest interaction is **salinity × location (11.8)**: the alkalinity–salinity slope differs between regions. Next come salinity × nitrate (3.8), temperature × silicate (3.0) and nitrate × silicate (2.4). For four pairs, the second figure shows the joint partial dependence on a 20 × 20 grid, and the pure interaction left over once the two single effects are subtracted. H² is the share of the joint effect's variance that this interaction explains: 0.465 for temperature × silicate and 0.458 for nitrate × silicate, but only 0.013 for salinity × nitrate and 0.003 for salinity × sea surface height, where the large salinity effect dominates the variance."
+        },
+        {
+          "type": "interactions",
+          "data": "explain-data.json",
+          "labels": {
+            "salinity": "Salinity",
+            "temperature": "Temperature",
+            "ssh_adt": "Sea surface height",
+            "chl_globcolour": "Chlorophyll",
+            "nitrate": "Nitrate",
+            "phosphate": "Phosphate",
+            "silicate": "Silicate",
+            "bottomdepth": "Bottom depth",
+            "location": "Location"
+          },
+          "units": {
+            "salinity": "",
+            "temperature": "°C",
+            "ssh_adt": "m",
+            "chl_globcolour": "mg m⁻³",
+            "nitrate": "µmol kg⁻¹",
+            "phosphate": "µmol kg⁻¹",
+            "silicate": "µmol kg⁻¹",
+            "bottomdepth": "m"
+          },
+          "note": "Matrix: click an outlined cell to open that pair below. Surfaces: partial dependence averaged over 400 bottles, each predictor spanning its 2nd to 98th percentile. Use \"Interaction only\" to see what the sum of the single effects does not explain.",
+          "ui": {
+            "loading": "Loading…",
+            "error": "Could not load the figure.",
+            "matrix_title": "Interaction strength between predictors",
+            "matrix_sub": "mean |interaction|, µmol kg⁻¹; 1 000 bottles",
+            "matrix_legend": "Off-diagonal: interaction strength, µmol kg⁻¹ (square-root colour scale). Diagonal: main effect. Outlined cells open a surface below.",
+            "predictor": "Predictor",
+            "main": "Main effect",
+            "pair": "Pair",
+            "strength": "Interaction",
+            "surface": "Surface",
+            "click": "click to show",
+            "pair_title": "Joint effect of a pair",
+            "pair_label": "Pair",
+            "mode_label": "Show",
+            "mode_joint": "Joint effect",
+            "mode_interaction": "Interaction only",
+            "pair_sub": "H² = {h2}: {pct}% of the joint effect's variance is not the sum of the two single effects",
+            "joint_caption": "Median alkalinity, µmol kg⁻¹",
+            "interaction_caption": "Pure interaction, µmol kg⁻¹ (red above, blue below the sum of the single effects)",
+            "joint_row": "Median TA",
+            "interaction_row": "Interaction",
+            "pair_aria": "{mode} of {a} and {b}"
+          }
+        },
+        {
+          "type": "callout",
+          "tone": "info",
+          "title": "How to read these figures",
+          "body": "The SHAP values use the path-dependent TreeSHAP algorithm. Correlated predictors, such as temperature and nutrients, share credit in ways that depend on how the trees split, so a contribution is not a causal effect of that predictor. Contributions are relative to the average estimate, not to zero. Interaction values cover only the boosted part of the model: the linear salinity baseline has no interactions by construction, so its slope varies with location only through the boosted residual."
+        }
+      ]
+    },
+    {
       "id": "uncertainty",
-      "kicker": "06 · Uncertainty",
+      "kicker": "07 · Uncertainty",
       "title": "Uncertainty from member disagreement and predicted quantile width",
       "lead": "The ensemble gives three variance terms: which data a model saw, which near-optimal model it is, and how wide its own predicted quantile band is.",
       "blocks": [
@@ -580,7 +742,7 @@
     },
     {
       "id": "calibration",
-      "kicker": "07 · Calibration",
+      "kicker": "08 · Calibration",
       "title": "Uncertainty calibration",
       "lead": "Does the predicted total uncertainty match the actual error on held-out data, and which terms make it up?",
       "blocks": [

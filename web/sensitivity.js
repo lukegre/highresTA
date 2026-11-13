@@ -1,6 +1,7 @@
 /* Spatial sensitivity maps: one card per predictor, hover/tap for values.
  * Data: sensitivity-data.json, written by web/build_sensitivity.py (packing described there).
- * Registers window.BLOCKS['sensitivity-maps']; load before app.js. */
+ * Registers window.BLOCKS['sensitivity-maps'] and exports shared helpers (colour ramp, lazy loading,
+ * the map-card grid) as window.SX for explain.js; load before explain.js and app.js. */
 window.BLOCKS = window.BLOCKS || {};
 
 (() => {
@@ -81,10 +82,26 @@ window.BLOCKS = window.BLOCKS || {};
     return canvas.toDataURL('image/png');
   }
 
-  window.BLOCKS['sensitivity-maps'] = (host, block) => {
+  /** Run fn once when el comes (almost) into view. */
+  function lazy(el, fn) {
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) { io.disconnect(); fn(); }
+      }, { rootMargin: '600px 0px' });
+      io.observe(el);
+    } else {
+      fn();
+    }
+  }
+
+  const fetchJson = (url) => fetch(url).then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); });
+
+  /** One map card per feature, shared hover ring and tooltip. Used by 'sensitivity-maps' and 'shap-maps'.
+   * source = { name, load(): Promise<{ grid, index, ramp, cards }> } where each card is
+   * { id, title, sub, limit, image (data URL), aria, rows(i, line) -> html rows (without position) }
+   * and index maps grid cell -> ocean cell (-1 = land). */
+  function mountMaps(host, block, source) {
     const ui = block.ui || {};
-    const labels = block.labels || {};
-    const units = block.units || {};
     const grid = document.createElement('div');
     grid.className = 'sx-grid';
     grid.innerHTML = `<p class="sx-loading">${esc(ui.loading || 'Loading maps…')}</p>`;
@@ -96,26 +113,20 @@ window.BLOCKS = window.BLOCKS || {};
       host.appendChild(note);
     }
 
-    const build = (raw) => {
-      const data = decode(raw);
-      const ramp = makeRamp();
-      const { nlat, nlon, lat0, dlat, lon0, dlon } = data.grid;
+    const build = ({ grid: g, index, ramp, cards: specs }) => {
+      const { nlat, nlon, lat0, dlat, lon0, dlon } = g;
       grid.innerHTML = '';
-      const cards = data.features.map((f) => {
+      const cards = specs.map((f) => {
         const card = document.createElement('figure');
         card.className = 'sx-card';
-        const unit = units[f.id] ? ` ${units[f.id]}` : '';
-        const used = f.n_members < data.n_members_total
-          ? (ui.members_used || '{n} of {total} models use it').replace('{n}', f.n_members).replace('{total}', data.n_members_total)
-          : (ui.members_all || 'all {total} models').replace('{total}', data.n_members_total);
         card.innerHTML = `
           <figcaption class="sx-head">
-            <span class="sx-title">${esc(labels[f.id] || f.id)}</span>
-            <span class="sx-sub">+δ = ${esc(round3(f.delta))}${esc(unit)} · ${esc(used)}</span>
+            <span class="sx-title">${esc(f.title)}</span>
+            <span class="sx-sub">${esc(f.sub)}</span>
           </figcaption>
           <div class="sx-map">
-            <svg viewBox="-180 -90 360 180" role="img" aria-label="${esc((ui.aria || 'Sensitivity of alkalinity to {name}').replace('{name}', labels[f.id] || f.id))}">
-              <image href="${paint(data, f, ramp)}" x="-180" y="-90" width="360" height="180" preserveAspectRatio="none"/>
+            <svg viewBox="-180 -90 360 180" role="img" aria-label="${esc(f.aria)}">
+              <image href="${f.image}" x="-180" y="-90" width="360" height="180" preserveAspectRatio="none"/>
               <image href="maps/land.png" x="-180" y="-90" width="360" height="180" preserveAspectRatio="none"/>
               <circle class="sx-marker" r="3" hidden/>
             </svg>
@@ -146,18 +157,10 @@ window.BLOCKS = window.BLOCKS || {};
           c.marker.removeAttribute('hidden');
           if (c !== active) c.tip.hidden = true;
         });
-        const v = cellValue(data, active.f, i);
         const cellLat = lat0 + row * dlat;
         const pos = `${Math.abs(cellLat).toFixed(1)}°${cellLat >= 0 ? 'N' : 'S'}, ${Math.abs(cx).toFixed(1)}°${cx >= 0 ? 'E' : 'W'}`;
         const line = (k, val) => `<div class="ux-tooltip-row"><div class="ux-tooltip-label">${esc(k)}</div><div class="ux-tooltip-value">${esc(val)}</div></div>`;
-        const rows = [line(ui.position || 'Position', pos)];
-        if (v) {
-          rows.push(line(ui.change || 'ΔTA per +δ', `${num(v.value, 1)} µmol/kg`));
-          if (v.agreement !== null) rows.push(line(ui.agreement || 'Models agree', `${Math.round(v.agreement * 100)}%`));
-          if (v.outside) rows.push(line(ui.outside || 'Outside training', `${Math.round(v.outside * data.dates.length)} of ${data.dates.length} dates`));
-        } else {
-          rows.push(line(ui.no_value || 'No value', data.index[i] < 0 ? (ui.land || 'land / no data') : '—'));
-        }
+        const rows = [line(ui.position || 'Position', pos), ...active.f.rows(i, line)];
         const tip = active.tip;
         tip.innerHTML = rows.join('');
         tip.hidden = false;
@@ -177,22 +180,50 @@ window.BLOCKS = window.BLOCKS || {};
       document.addEventListener('pointerdown', (e) => { if (!grid.contains(e.target)) hide(); });
     };
 
-    const load = () => fetch(block.data || 'sensitivity-data.json')
-      .then((r) => { if (!r.ok) throw new Error(r.status); return r.json(); })
+    lazy(grid, () => source.load()
       .then(build)
       .catch((err) => {
-        console.error('sensitivity-maps:', err);
+        console.error(`${source.name}:`, err);
         grid.innerHTML = `<p class="sx-loading">${esc(ui.error || 'Could not load the maps.')}</p>`;
-      });
-
-    if ('IntersectionObserver' in window) {
-      const io = new IntersectionObserver((entries) => {
-        if (entries.some((e) => e.isIntersecting)) { io.disconnect(); load(); }
-      }, { rootMargin: '600px 0px' });
-      io.observe(grid);
-    } else {
-      load();
-    }
+      }));
     return host;
+  }
+
+  window.SX = { bytes, cssVar, hexRgb, esc, num, tick, round3, makeRamp, lazy, fetchJson, mountMaps };
+
+  window.BLOCKS['sensitivity-maps'] = (host, block) => {
+    const ui = block.ui || {};
+    const labels = block.labels || {};
+    const units = block.units || {};
+    return mountMaps(host, block, {
+      name: 'sensitivity-maps',
+      load: () => fetchJson(block.data || 'sensitivity-data.json').then((raw) => {
+        const data = decode(raw);
+        const ramp = makeRamp();
+        const cards = data.features.map((f) => {
+          const unit = units[f.id] ? ` ${units[f.id]}` : '';
+          const used = f.n_members < data.n_members_total
+            ? (ui.members_used || '{n} of {total} models use it').replace('{n}', f.n_members).replace('{total}', data.n_members_total)
+            : (ui.members_all || 'all {total} models').replace('{total}', data.n_members_total);
+          return {
+            id: f.id,
+            title: labels[f.id] || f.id,
+            sub: `+δ = ${round3(f.delta)}${unit} · ${used}`,
+            limit: f.limit,
+            image: paint(data, f, ramp),
+            aria: (ui.aria || 'Sensitivity of alkalinity to {name}').replace('{name}', labels[f.id] || f.id),
+            rows: (i, line) => {
+              const v = cellValue(data, f, i);
+              if (!v) return [line(ui.no_value || 'No value', data.index[i] < 0 ? (ui.land || 'land / no data') : '—')];
+              const rows = [line(ui.change || 'ΔTA per +δ', `${num(v.value, 1)} µmol/kg`)];
+              if (v.agreement !== null) rows.push(line(ui.agreement || 'Models agree', `${Math.round(v.agreement * 100)}%`));
+              if (v.outside) rows.push(line(ui.outside || 'Outside training', `${Math.round(v.outside * data.dates.length)} of ${data.dates.length} dates`));
+              return rows;
+            },
+          };
+        });
+        return { grid: data.grid, index: data.index, ramp, cards };
+      }),
+    });
   };
 })();

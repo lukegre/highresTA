@@ -15,6 +15,7 @@ Set the public dataset URL in [the viewer TOML](viewer/explorer.toml) and [rebui
 | `tokens.css` | RdYlBu palette and light/dark tokens | Yes, for colours |
 | `style.css`, `app.js` | Layout and page renderer | Rarely |
 | `uncertainty.css`, `uncertainty.js` | Interactive uncertainty explorer and charts | Rarely |
+| `sensitivity.js`, `explain.js` | Sensitivity maps; SHAP summary, maps and interactions (styles at the end of `method.css`; `explain.js` needs `sensitivity.js` loaded first) | Rarely |
 | `method.html`, `method.css` | Method page shell and its styles | Yes |
 
 ## Hosting on RenkuLab
@@ -33,6 +34,14 @@ The Drivers section on the method page reads `sensitivity-data.json`. After runn
 
     uv run python web/build_sensitivity.py --run models/<run-folder>
 
+## Regenerate the SHAP contributions and interactions
+
+The Contributions section reads `explain-data.json` (one fetch shared by its three blocks). After running `scripts/explain_model.py` for a run, export it with:
+
+    uv run python web/build_explain.py --run models/<run-folder>
+
+The file holds a random subset of 1,500 explained bottles, the SHAP maps (zlib-compressed int16, inflated in the browser with `DecompressionStream`), the interaction matrix and the 2-D partial-dependence pairs (about 0.6 MB).
+
 ## Editing content
 
 Edit `project.links` for the shared primary navigation and `overview.sectionNav` for landing-page anchors. `overview.maps` pairs each source image and optional full-resolution link with its caption, legend, and alt text. Edit `comparison.lineage` to change each run’s parent and description of what changed. Page copy updates on reload. Measured scores and saved predictions are kept in their source data, and upstream viewer configuration lives in TOML.
@@ -42,6 +51,9 @@ and `{{path.to.value|fmt}}` placeholders that read from `data.json` (`fmt`: `int
 `equation` items are LaTeX, rendered with KaTeX from cdnjs (the raw string is shown if it fails to load).
 
 Block types: `text`, `cards`, `steps`, `table`, `callout` (`tone`: info/warn/key), `equation`, `sensitivity-maps` (`data`, `labels`, `units`, `note`, `ui`; one interactive map per predictor from `sensitivity-data.json`),
+`shap-summary` (`labels`, `units`, `note`, `ui`; beeswarm of bottle contributions from `explain-data.json`),
+`shap-maps` (same fields as `sensitivity-maps`; one map per predictor with its contribution, including Location),
+`interactions` (`labels`, `units`, `note`, `ui`; interaction-strength matrix plus a pair viewer with a joint/interaction toggle),
 `details` (collapsed `<details>`; `title` + nested `blocks`), `cleaning-steps` (`items`: `name`, `body`; numbers
 come from `data.funnel` in the same order), `split-explorer`, `member-grid` (`rows_label`, `rows_note`,
 `cols_label`, `cols_note`, `hint`),
