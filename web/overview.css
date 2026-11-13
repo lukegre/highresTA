@@ -21,7 +21,7 @@ figure { margin: 0; }
 .map-meta span:not(:first-child) { margin-left: 12px; }
 .gradient { width: 45px; height: 7px; background: linear-gradient(90deg,#313695,#74add1,#e0f3f8,#ffffbf,#fdae61,#d73027,#a50026); }
 figcaption p:last-child, article p { margin: 0; color: var(--site-muted); }
-.routes { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); grid-template-columns: repeat(3, 1fr); }
+.routes { margin-top: 38px; padding-top: 22px; border-top: 1px solid var(--site-line); grid-template-columns: repeat(auto-fit, minmax(230px, 1fr)); }
 .routes h2 { font-size: clamp(24px, 2vw, 30px); }
 .routes a { text-decoration: none; }
 .routes a:hover { text-decoration: underline; }

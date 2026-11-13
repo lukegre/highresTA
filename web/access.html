@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Open the HighresTA total alkalinity estimates with xarray and inspect the dataset layout.">
+  <title>Access Data · HighresTA</title>
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="overview.css">
+  <style>
+    main { max-width: 920px; }
+    main > section { margin-top: 38px; }
+    pre { margin: 14px 0; padding: 14px 18px; overflow-x: auto; background: var(--site-surface); border: 1px solid var(--site-line); font: 14px/1.55 ui-monospace, "SFMono-Regular", Menlo, monospace; }
+    code { font-family: ui-monospace, "SFMono-Regular", Menlo, monospace; font-size: .92em; }
+    .dataset { margin-top: 14px; padding: 14px 18px; overflow-x: auto; background: var(--site-surface); border: 1px solid var(--site-line);
+      --xr-font-color0: var(--site-ink); --xr-font-color2: var(--site-muted); --xr-font-color3: var(--site-muted);
+      --xr-border-color: var(--site-line); --xr-disabled-color: var(--site-line);
+      --xr-background-color: var(--site-surface); --xr-background-color-row-even: var(--site-surface-alt); --xr-background-color-row-odd: var(--site-surface); }
+    table.vars { border-collapse: collapse; width: 100%; margin-top: 14px; font-size: 15px; }
+    table.vars th, table.vars td { text-align: left; vertical-align: top; padding: 8px 12px 8px 0; border-bottom: 1px solid var(--site-line); }
+    table.vars th { color: var(--site-muted); font-weight: 600; }
+  </style>
+</head>
+<body>
+  <nav class="site-nav"></nav>
+  <main>
+    <section>
+      <h1>Access the data</h1>
+      <p class="lead">The estimates are published as a GeoZarr pyramid. xarray opens it lazily over HTTP, so only the chunks you select are downloaded.</p>
+    </section>
+
+    <section>
+      <h2>Open the store</h2>
+      <p>Level <code>0</code> of the pyramid is the full 0.25° grid at 8-day resolution. You need <code>xarray</code>, <code>zarr</code>, <code>fsspec</code>, <code>aiohttp</code> and <code>dask</code>.</p>
+<pre><code>import xarray as xr
+
+store = "https://data.up.ethz.ch/shared/OceanSODA-ETHZv2/.total_alkalinity/highresTA-8D_025deg-stacked_salinity_model-20261109.zarr/"
+ds = xr.open_zarr(store, group="0")
+ds</code></pre>
+      <p>The root of the store holds only metadata. The coarser pyramid levels are the other groups listed in its <code>multiscales</code> attribute.</p>
+    </section>
+
+    <section>
+      <h2>Data structure</h2>
+      <p>This is the HTML output xarray shows for <code>ds</code>. Expand the sections to inspect coordinates, variables and attributes.</p>
+      <div class="dataset" id="dataset"><p>Loading the dataset summary…</p></div>
+      <table class="vars">
+        <thead><tr><th>Variable</th><th>Dimensions</th><th>Contents</th></tr></thead>
+        <tbody>
+          <tr><td><code>talk_median</code></td><td><code>time, lat, lon</code></td><td>Median (Q50) estimate of surface total alkalinity, µmol kg⁻¹.</td></tr>
+          <tr><td><code>talk_total_stdev</code></td><td><code>time, lat, lon</code></td><td>Total uncertainty as a standard deviation, combining member disagreement and predicted quantile width.</td></tr>
+          <tr><td><code>talk_var</code></td><td><code>variance_type, time, lat, lon</code></td><td>The uncertainty components, selected by <code>variance_type</code>: <code>total_var</code>, <code>var_split</code>, <code>var_replicate</code> and <code>q90_minus_q10</code>.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Example</h2>
+<pre><code># one 8-day field
+ta = ds.talk_median.sel(time="2021-05-21", method="nearest")
+
+# uncertainty at the same time, and one of its components
+sigma = ds.talk_total_stdev.sel(time="2021-05-21", method="nearest")
+split_var = ds.talk_var.sel(variance_type="var_split", time="2021-05-21", method="nearest")
+
+# time series at a point (latitude runs from north to south)
+point = ds.talk_median.sel(lat=32.0, lon=-64.0, method="nearest").load()
+
+# a regional subset, downloaded only when computed
+med = ds.talk_median.sel(lat=slice(46, 30), lon=slice(-6, 36)).sel(time="2021").load()</code></pre>
+    </section>
+  </main>
+  <footer></footer>
+  <script src="site.js" defer></script>
+  <script>
+    // The summary is the saved output of ds._repr_html_(); regenerate it when the store changes (web/README.md).
+    fetch('access-repr.html').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); })
+      .then(html => { document.getElementById('dataset').innerHTML = html; })
+      .catch(() => { document.getElementById('dataset').textContent = 'The dataset summary could not be loaded.'; });
+  </script>
+</body>
+</html>

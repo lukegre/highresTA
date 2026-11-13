@@ -50,7 +50,8 @@ const app = {
 
     // Nav
     const nav = document.getElementById('nav');
-    this.content.site.nav.forEach(item => {
+    const page = document.body.dataset.page || 'method';
+    this.content.site.nav.filter(item => (item.page || 'method') === page).forEach(item => {
       const a = document.createElement('a');
       a.href = `#${item.id}`;
       a.textContent = item.label;
@@ -58,9 +59,10 @@ const app = {
       nav.appendChild(a);
     });
 
-    // Hero: lead and headline numbers (no title)
+    // Hero: lead and headline numbers (no title); only the method page has one
     const hero = document.getElementById('hero');
-    hero.innerHTML = `
+    if (page !== 'method') hero.remove();
+    else hero.innerHTML = `
       <div class="section__inner">
         <div class="hero-content">
           <p class="hero-lead">${this.md(this.content.hero.lead, ctx)}</p>
@@ -79,7 +81,7 @@ const app = {
 
     // Content sections
     const contentDiv = document.getElementById('content');
-    this.content.sections.forEach(section => {
+    this.content.sections.filter(section => (section.page || 'method') === page).forEach(section => {
       const sectionEl = document.createElement('section');
       sectionEl.className = 'section';
       sectionEl.id = section.id;

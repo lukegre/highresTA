@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Diagnostics · HighresTA</title>
+<title>Experiments · HighresTA</title>
 <link rel="stylesheet" href="site.css">
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -80,6 +80,8 @@ tr[data-st] { cursor: pointer; }
 tr.sel td { background: var(--accent-soft); font-weight: 600; }
 tr.grp td { background: var(--mid); font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-2); }
 .heat th.grp { text-align: center; border-bottom: 0; }
+/* vertical rule between the gridded and in-situ column groups (stations table) */
+#stTable thead tr:first-child th:nth-child(3), #stTable thead tr:nth-child(2) th:nth-child(4), #stTable tbody tr[data-st] td:nth-child(5) { border-left: 1px solid var(--rule); }
 .sw { display: inline-block; width: 12px; height: 12px; border-radius: 2px; margin-right: 6px; vertical-align: -1px; background: var(--c); }
 .sw.pale { opacity: 0.4; }
 .sw.hatch { background: repeating-linear-gradient(45deg, var(--c) 0 2px, transparent 2px 5px); border: 1px solid var(--c); }

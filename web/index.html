@@ -9,9 +9,10 @@
   <link rel="stylesheet" href="overview.css">
   <script>
     // Preserve bookmarks to the methods explorer that previously occupied this page.
-    if (['#data', '#preprocessing', '#splits', '#model', '#uncertainty', '#calibration'].includes(location.hash)) {
-      location.replace('method.html' + location.search + location.hash);
-    }
+    const page = ['#data', '#preprocessing', '#splits', '#model'].includes(location.hash) ? 'method.html'
+      : ['#drivers', '#contributions'].includes(location.hash) ? 'diagnostics.html'
+      : ['#uncertainty', '#calibration'].includes(location.hash) ? 'uncertainty.html' : null;
+    if (page) location.replace(page + location.search + location.hash);
   </script>
 </head>
 <body>

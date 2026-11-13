@@ -12,8 +12,20 @@
         "href": "method.html"
       },
       {
-        "label": "Diagnostics",
+        "label": "Uncertainty",
+        "href": "uncertainty.html"
+      },
+      {
+        "label": "Drivers",
+        "href": "diagnostics.html"
+      },
+      {
+        "label": "Experiments",
         "href": "comparison.html"
+      },
+      {
+        "label": "Access Data",
+        "href": "access.html"
       },
       {
         "label": "Explore data",
@@ -105,12 +117,27 @@
       {
         "label": "Follow the method →",
         "href": "method.html#model",
-        "description": "Training data, cruise-wise splits, the model equation and how the uncertainty is built and checked."
+        "description": "Training data, cruise-wise splits and the model equation."
       },
       {
-        "label": "Compare model variants →",
+        "label": "Understand the uncertainty →",
+        "href": "uncertainty.html",
+        "description": "How the total uncertainty is built from the ensemble and predicted quantile width, and how well it is calibrated."
+      },
+      {
+        "label": "Check the drivers →",
+        "href": "diagnostics.html",
+        "description": "Where each predictor moves the estimate: partial dependence, SHAP values and joint interactions."
+      },
+      {
+        "label": "Compare model experiments →",
         "href": "comparison.html",
         "description": "What adding Mediterranean CARIMED bottles and training on gridded instead of in-situ salinity do to the held-out error."
+      },
+      {
+        "label": "Access the data →",
+        "href": "access.html",
+        "description": "Open the published Zarr store with xarray and see how the dataset is laid out."
       },
       {
         "label": "Explore the data →",
@@ -180,20 +207,34 @@
         "label": "Splits & ensemble"
       },
       {
-        "id": "drivers",
-        "label": "Drivers"
+        "id": "partial-dependence",
+        "label": "Partial dependence",
+        "page": "diagnostics"
       },
       {
-        "id": "contributions",
-        "label": "Contributions"
+        "id": "shap",
+        "label": "SHAP values",
+        "page": "diagnostics"
       },
       {
-        "id": "uncertainty",
-        "label": "Uncertainty"
+        "id": "interactions",
+        "label": "Joint interactions",
+        "page": "diagnostics"
+      },
+      {
+        "id": "total-uncertainty",
+        "label": "Total uncertainty",
+        "page": "uncertainty"
+      },
+      {
+        "id": "ensemble",
+        "label": "Ensemble",
+        "page": "uncertainty"
       },
       {
         "id": "calibration",
-        "label": "Calibration"
+        "label": "Calibration",
+        "page": "uncertainty"
       }
     ]
   },
@@ -471,8 +512,9 @@
       ]
     },
     {
-      "id": "drivers",
-      "kicker": "05 · Drivers",
+      "id": "partial-dependence",
+      "page": "diagnostics",
+      "kicker": "01 · Partial dependence",
       "title": "Where each predictor moves the estimate",
       "lead": "Nudge one predictor up and down in every ocean cell, hold the others fixed, and see how much the ensemble's median estimate changes. Salinity dominates everywhere. The other predictors make small, regional corrections.",
       "blocks": [
@@ -545,8 +587,9 @@
       ]
     },
     {
-      "id": "contributions",
-      "kicker": "06 · Contributions",
+      "id": "shap",
+      "page": "diagnostics",
+      "kicker": "02 · SHAP values",
       "title": "What adds up to each estimate",
       "lead": "SHAP splits every prediction into one contribution per predictor. Salinity carries most of it. Location comes second, and the largest interaction is between salinity and location.",
       "blocks": [
@@ -639,7 +682,16 @@
             "sub": "mean |contribution| {v} µmol kg⁻¹",
             "aria": "Contribution of {name} to the estimated alkalinity"
           }
-        },
+        }
+      ]
+    },
+    {
+      "id": "interactions",
+      "page": "diagnostics",
+      "kicker": "03 · Joint interactions",
+      "title": "Where predictors act together",
+      "lead": "Two predictors interact when the effect of one depends on the other. Salinity and location interact most strongly: the alkalinity–salinity slope differs between regions.",
+      "blocks": [
         {
           "type": "text",
           "body": "Two predictors interact when the effect of one depends on the other. The first figure shows the strength of each pair, as the mean absolute SHAP interaction value, with the main effect of each predictor on the diagonal. The strongest interaction is **salinity × location (11.8)**: the alkalinity–salinity slope differs between regions. Next come salinity × nitrate (3.8), temperature × silicate (3.0) and nitrate × silicate (2.4). For four pairs, the second figure shows the joint partial dependence on a 20 × 20 grid, and the pure interaction left over once the two single effects are subtracted. H² is the share of the joint effect's variance that this interaction explains: 0.465 for temperature × silicate and 0.458 for nitrate × silicate, but only 0.013 for salinity × nitrate and 0.003 for salinity × sea surface height, where the large salinity effect dominates the variance."
@@ -703,9 +755,10 @@
       ]
     },
     {
-      "id": "uncertainty",
-      "kicker": "07 · Uncertainty",
-      "title": "Uncertainty from member disagreement and predicted quantile width",
+      "id": "total-uncertainty",
+      "page": "uncertainty",
+      "kicker": "01 · Total uncertainty",
+      "title": "How the total uncertainty is built",
       "lead": "The ensemble gives three variance terms: which data a model saw, which near-optimal model it is, and how wide its own predicted quantile band is.",
       "blocks": [
         {
@@ -734,7 +787,16 @@
           "items": [
             "\\sigma_\\text{total} = \\sqrt{\\sigma^2_\\text{split} + \\sigma^2_\\text{member} + \\sigma^2_\\text{quantile}},\\qquad \\sigma_\\text{quantile} = (Q_{90} - Q_{10})/2.563"
           ]
-        },
+        }
+      ]
+    },
+    {
+      "id": "ensemble",
+      "page": "uncertainty",
+      "kicker": "02 · Ensemble",
+      "title": "How the ensemble spread arises",
+      "lead": "Explore how the spread between members changes with which members are pooled.",
+      "blocks": [
         {
           "type": "uncertainty-explorer"
         }
@@ -742,7 +804,7 @@
     },
     {
       "id": "calibration",
-      "kicker": "08 · Calibration",
+      "kicker": "03 · Calibration",
       "title": "Uncertainty calibration",
       "lead": "Does the predicted total uncertainty match the actual error on held-out data, and which terms make it up?",
       "blocks": [
@@ -768,7 +830,8 @@
             }
           ]
         }
-      ]
+      ],
+      "page": "uncertainty"
     }
   ],
   "explorer": {

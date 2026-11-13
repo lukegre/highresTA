@@ -41,6 +41,7 @@ nav.site-nav {
   text-decoration: none;
   border-bottom: 2px solid transparent;
 }
+.site-links a.site-repo { display: inline-flex; align-items: center; padding: 4px 0; border-bottom: 0; }
 .site-links a:hover, .site-links a:focus-visible { color: var(--site-teal); text-decoration: underline; text-underline-offset: 4px; }
 .site-links a[aria-current="page"] { color: var(--site-ink); border-color: var(--site-teal); font-weight: 700; }
 @media (max-width: 550px) {

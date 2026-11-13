@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Drivers · HighresTA</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.css">
+  <link rel="stylesheet" href="site.css">
+  <link rel="stylesheet" href="tokens.css">
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="uncertainty.css">
+  <link rel="stylesheet" href="method.css">
+</head>
+<body data-page="diagnostics">
+  <nav class="site-nav" aria-label="Project"></nav>
+  <script src="site.js" defer></script>
+  <header id="topbar" class="section-nav">
+    <nav id="nav" aria-label="Sections"></nav>
+  </header>
+
+  <main id="top">
+    <section id="hero" class="hero"></section>
+    <div id="content"></div>
+  </main>
+
+  <footer id="footer" class="footer"></footer>
+  <div id="load-error" class="load-error" hidden></div>
+
+  <script defer src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <!-- Order matters: uncertainty.js, sensitivity.js and explain.js (needs sensitivity.js) register block renderers, app.js renders the page. -->
+  <script src="uncertainty.js"></script>
+  <script src="sensitivity.js"></script>
+  <script src="explain.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

@@ -16,7 +16,8 @@ Set the public dataset URL in [the viewer TOML](viewer/explorer.toml) and [rebui
 | `style.css`, `app.js` | Layout and page renderer | Rarely |
 | `uncertainty.css`, `uncertainty.js` | Interactive uncertainty explorer and charts | Rarely |
 | `sensitivity.js`, `explain.js` | Sensitivity maps; SHAP summary, maps and interactions (styles at the end of `method.css`; `explain.js` needs `sensitivity.js` loaded first) | Rarely |
-| `method.html`, `method.css` | Method page shell and its styles | Yes |
+| `method.html`, `diagnostics.html`, `uncertainty.html`, `method.css` | Shells for the Method, Uncertainty and Drivers pages; `content.json` sections and nav items carry a `"page"` (default `method`) that picks the shell | Yes |
+| `access.html`, `access-repr.html` | Access Data page; `access-repr.html` is the saved `ds._repr_html_()` of the published store (`xr.open_zarr(url, group="0")`), regenerate it when the store changes | Yes |
 
 ## Hosting on RenkuLab
 
@@ -30,7 +31,7 @@ Test the app command locally:
 
 ## Regenerate the sensitivity maps
 
-The Drivers section on the method page reads `sensitivity-data.json`. After running `scripts/spatial_pdp.py` for a run, export it with:
+The Drivers section on the diagnostics page reads `sensitivity-data.json`. After running `scripts/spatial_pdp.py` for a run, export it with:
 
     uv run python web/build_sensitivity.py --run models/<run-folder>
 
