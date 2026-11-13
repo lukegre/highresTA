@@ -33,6 +33,8 @@ Inference: `uv run python scripts/inference.py` — all settings from `configs/i
 
 Spatial partial dependence: `uv run python scripts/spatial_pdp.py [--override FILE] [--date YYYY-MM-DD] [--stride N] [--delta-scale X]` — settings from `configs/partial_dependence.yaml`; perturbs each predictor by ±δ in every (strided) ocean cell and writes `<run>/partial_dependence/` with `sensitivity.nc` (feature, lat, lon), `summary.csv`, `sensitivity_maps.{png,pdf}`, `sensitivity_maps_transparent.png` and `sensitivity_spread.{png,pdf}`.
 
+SHAP and interactions: `uv run python scripts/explain_model.py [--stage bottles|interactions|pdp|maps|all] [--override FILE]` — settings from `configs/explain.yaml`; Q50 SHAP contributions (`highres_ta.explain`) for a sample of bottles, pairwise interaction strengths, 2-D partial dependence for the top pairs and SHAP maps, written to `<run>/explain/`.
+
 ## Configuration
 
 `configs/*.yaml`, one file per concern, each owning distinct top-level keys: `paths.yaml` (`paths:` — every file location and URL), `data.yaml` (`data:`), `training.yaml` (`model:`, `cross_validation:`, `optimization:`, `evaluation:`, `ensemble:`), `inference.yaml` (`inference:`). `ta.load_config()` merges the whole folder (error on duplicate top-level keys) or loads one file; scripts take `--config`. Relative paths resolve against the repo root, URLs pass through. Keep paths in `paths.yaml` — no env vars or hard-coded paths in code. `load_config(overrides=[...])` deep-merges variant files from `configs/variants/` (not globbed by default) on top; `data.salinity_source: null` is in situ salinity.

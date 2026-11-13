@@ -1,5 +1,11 @@
 from .dataio import add_talk_adjustment, load_data
 from .estimators import CatBoostResidualRegressor
+from .explain import (
+    ensemble_shap,
+    ensemble_shap_interactions,
+    partial_dependence_2d,
+    shap_maps,
+)
 from .features import add_cyclical_dayofyear, add_spherical_coords
 from .inference import (
     calc_variance_decomposition,
@@ -45,11 +51,14 @@ __all__ = [
     "decompose_variance",
     "drop_bad_quality_talk",
     "drop_extreme_salinities",
+    "ensemble_shap",
+    "ensemble_shap_interactions",
     "load_config",
     "load_data",
     "make_train_test_folds",
     "open_gridded_data",
     "open_inference_data",
+    "partial_dependence_2d",
     "pinball_loss_by_quantile",
     "plot_station",
     "predict",
@@ -63,6 +72,7 @@ __all__ = [
     "score_quantile_predictions",
     "score_stations",
     "select_inference_date",
+    "shap_maps",
     "spatial_sensitivity",
     "training_feature_stats",
 ]

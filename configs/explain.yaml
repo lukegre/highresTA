@@ -1,0 +1,14 @@
+explain:
+  n_rows: 4000             # bottles explained (random sample of prepare_data rows, seed 0)
+  n_rows_interactions: 1000
+  n_background_pd: 400
+  n_grid: 20
+  top_pairs: 4
+  map_dates: ["2019-01-17", "2019-04-15", "2019-07-12", "2019-10-08"]
+  map_stride: 4
+  groups: {location: [ncoord_x, ncoord_y, ncoord_z]}
+  log_features: [chl_globcolour]
+  max_cpus: 126
+  labels: {salinity: Salinity, temperature: Temperature, ssh_adt: Sea surface height,
+           chl_globcolour: Chlorophyll, nitrate: Nitrate, phosphate: Phosphate,
+           silicate: Silicate, bottomdepth: Bottom depth, location: Location}

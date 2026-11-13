@@ -120,6 +120,21 @@ def summarise_members(S: np.ndarray) -> dict[str, np.ndarray]:
     }
 
 
+def _grid_frame(
+    features: xr.Dataset, date, stride: int
+) -> tuple[pd.DataFrame, np.ndarray, np.ndarray]:
+    """Ocean cells of the strided grid at ``date``: (frame indexed by (lat, lon), lat, lon)."""
+    offset = stride // 2
+    grid = features.isel(lat=slice(offset, None, stride), lon=slice(offset, None, stride))
+    selected = grid.sel(time=[date], method="nearest")
+    if "dayofyear" in grid.dims:
+        doy = int(selected.time.dt.dayofyear.item())
+        selected = selected.sel(dayofyear=[doy], method="nearest")
+    # load only the selected time step, not the full stack
+    df = select_inference_date(selected.load(), date).droplevel("time")
+    return df, grid.lat.values, grid.lon.values
+
+
 def sensitivity_for_date(
     model: QuantileRegressionEnsemble,
     features: xr.Dataset,
@@ -133,14 +148,7 @@ def sensitivity_for_date(
     exclude_features: Sequence[str],
 ) -> xr.Dataset:
     """Per-feature sensitivity maps (feature, lat, lon) for one date on a strided grid."""
-    offset = stride // 2
-    grid = features.isel(lat=slice(offset, None, stride), lon=slice(offset, None, stride))
-    selected = grid.sel(time=[date], method="nearest")
-    if "dayofyear" in grid.dims:
-        doy = int(selected.time.dt.dayofyear.item())
-        selected = selected.sel(dayofyear=[doy], method="nearest")
-    # load only the selected time step, not the full stack
-    df = select_inference_date(selected.load(), date).droplevel("time")
+    df, lat, lon = _grid_frame(features, date, stride)
     X = df.loc[:, list(model.get_feature_names())]
 
     names = [name for name in model.get_feature_names() if name not in exclude_features]
@@ -171,7 +179,6 @@ def sensitivity_for_date(
             name not in _ignored_feature_names(model, estimator) for estimator in model.estimators
         ))
 
-    lat, lon = grid.lat.values, grid.lon.values
     data_vars = {}
     for key, per_feature in columns.items():
         frame = pd.DataFrame(per_feature, index=X.index).rename_axis(columns="feature")
