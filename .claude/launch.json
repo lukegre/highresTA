@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "highresta-web",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": ["web/viewer/serve.py", "web", "--port", "8780", "--relay-host", "data.up.ethz.ch"],
+      "port": 8780
+    }
+  ]
+}

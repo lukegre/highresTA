@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Evaluation · HighresTA</title>
+<link rel="stylesheet" href="site.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="report.css">
+<style>
+tbody tr[data-g] { cursor: pointer; }
+tbody tr[data-g]:hover td { background: var(--accent-soft); }
+tr.total td { font-weight: 600; border-bottom: 2px solid var(--rule); }
+#evRegion button:disabled { opacity: 0.4; cursor: default; }
+.eval-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .eval-grid { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<nav class="site-nav" aria-label="Project"></nav>
+<script src="site.js" defer></script>
+
+<header class="top"><div class="wrap">
+  <h1 id="heading"></h1>
+  <p class="lede" id="hero"></p>
+</div></header>
+
+<main class="wrap">
+  <section id="v-evaluation">
+    <div class="intro"><p class="lede" id="intro"></p></div>
+    <div class="panel">
+      <div class="controls">
+        <div class="ctl"><span id="evGroupLabel">Group by</span><span id="evGroup"></span></div>
+      </div>
+      <p class="note" id="evGroupNote"></p>
+      <div class="eval-grid">
+        <div class="tablewrap"><h3 id="evTableTitle"></h3><table id="evTable"></table></div>
+        <div style="min-width:0;display:grid;gap:8px;align-content:start">
+          <h3 id="evMapTitle"></h3>
+          <div class="chips" id="evChips"></div>
+          <div id="evRegion" hidden></div>
+          <div id="evMap" class="chart short"></div>
+          <p class="note" id="evMapNote"></p>
+        </div>
+      </div>
+      <p class="note" id="evFootnote"></p>
+    </div>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/2.27.0/plotly.min.js"></script>
+<script src="plotly-geo-assets.js"></script>
+<script src="evaluation.js"></script>
+</body>
+</html>

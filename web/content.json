@@ -12,6 +12,10 @@
         "href": "method.html"
       },
       {
+        "label": "Evaluation",
+        "href": "evaluation.html"
+      },
+      {
         "label": "Uncertainty",
         "href": "uncertainty.html"
       },
@@ -1502,5 +1506,23 @@
     },
     "baseline_label": "Baseline",
     "budget_map_note": "Where each region's samples are. Hover a bar or a chip to highlight that region."
+  },
+  "evaluation": {
+    "title": "Evaluation · HighresTA",
+    "heading": "Evaluation of the gridded-salinity model",
+    "hero": "How well the published model (trained and scored on the gridded salinity stack) reproduces bottle total alkalinity it has not trained on, by region, ocean basin, salinity and period.",
+    "intro": "Every row here is held out: the test block plus the out-of-fold rows of each split, pooled. Scores compare the median (q50) prediction with the bottle value. Click a row or a chip to see where its samples are; hover to preview.",
+    "table_title": "Scores by group",
+    "map_title": "Where the samples are",
+    "map_note": "Orange dots are the held-out samples of the selected group (drawn from a random subset of 6,000 held-out rows).",
+    "group_note": {
+      "valregion": "Switch on any combination: deep or coastal ocean (500 m depth) and high (|lat| > 60°) or mid and low latitude; both or neither of a pair means no restriction. The Mediterranean (from the basin table) has no depth or latitude split, so it excludes the other switches. Excl. Mediterranean combines with them: alone it is exact (the other basins pooled), with a depth or latitude switch it is an estimate that removes the Mediterranean's share of the selection (its overall scores, apportioned by where its sampled points fall).",
+      "basin": "Ocean basins as in the Held-out comparison tab.",
+      "salbin": "Bins of the bottle's in-situ salinity.",
+      "year": "Five-year periods, labelled by their first year."
+    },
+    "all_label": "All held-out rows",
+    "footnote": "Bias is predicted minus observed, in µmol kg⁻¹; negative means under-prediction. Region scores pool the test block and out-of-fold rows exactly (from their MAE, RMSE and bias); the other groupings come from the pooled held-out table.",
+    "groupings": ["valregion", "basin", "salbin", "year"]
   }
 }
